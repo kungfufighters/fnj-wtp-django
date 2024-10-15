@@ -1,5 +1,5 @@
 """
-ASGI config for wheretoplay project.
+ASGI config for wheretoplay project
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 

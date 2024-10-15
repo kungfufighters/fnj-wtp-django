@@ -1,5 +1,5 @@
 """
-WSGI config for wheretoplay project.
+WSGI config for Wheretoplay project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.
 
