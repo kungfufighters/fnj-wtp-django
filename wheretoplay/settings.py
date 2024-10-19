@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    'rest_framework.authtoken',
     "wheretoplayApp.apps.WheretoplayappConfig",
 ]
 
@@ -85,7 +86,7 @@ DATABASES = {
         'NAME': env('DATABASE_NAME'),
         'USER': env('DATABASE_USER'),
         'PASSWORD': env("DATABASE_PASS"),
-        'HOST': 'localhost',
+        'HOST': '192.168.1.23',
         'PORT': '3306',
     }
 }
