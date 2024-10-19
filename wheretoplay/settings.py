@@ -90,9 +90,23 @@ DATABASES = {
         'PORT': '3306',
     }
 }
+
 #Covers regular testing and django-coverage
 if 'test' in sys.argv or 'test_coverage' in sys.argv:
     DATABASES['default']['ENGINE'] = 'django.db.backends.sqlite3'
+    
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',  # Enable token authentication
+        'rest_framework_simplejwt.authentication.JWTAuthentication'
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.AllowAny',  # Allow open access for registration
+    )
+}
+
+AUTH_USER_MODEL = 'wheretoplayApp.CustomUser'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
