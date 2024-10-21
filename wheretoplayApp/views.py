@@ -1,3 +1,4 @@
+from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import render
 from rest_framework.views import APIView
@@ -46,3 +47,23 @@ class SignupView(APIView):
 
         print("Serializer errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginView(APIView):
+    def post(self, request, *args, **kwargs):
+        # Extract email and password from the request
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        # Authenticate user
+        user = authenticate(request, username=email, password=password)
+
+        if user is not None:
+            # Generate tokens if authentication is successful
+            tokens = get_tokens_for_user(user)
+            return Response({
+                'message': 'Login successful',
+                'tokens': tokens,
+            }, status=status.HTTP_200_OK)
+        else:
+            # Authentication failed
+            return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
