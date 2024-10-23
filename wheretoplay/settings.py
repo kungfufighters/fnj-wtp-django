@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 import environ, os, sys
 
@@ -31,10 +32,20 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 # Application definition
 
 INSTALLED_APPS = [
+    "channels",
+    "corsheaders",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -43,9 +54,12 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "wheretoplayApp.apps.WheretoplayappConfig",
+    'rest_framework_simplejwt.token_blacklist',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -56,6 +70,10 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "wheretoplay.urls"
+
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+]
 
 TEMPLATES = [
     {
@@ -72,6 +90,8 @@ TEMPLATES = [
         },
     },
 ]
+
+ASGI_APPLICATION = "wheretoplay.asgi.application"
 
 WSGI_APPLICATION = "wheretoplay.wsgi.application"
 
@@ -92,6 +112,35 @@ DATABASES = {
 #Covers regular testing and django-coverage
 if 'test' in sys.argv or 'test_coverage' in sys.argv:
     DATABASES['default']['ENGINE'] = 'django.db.backends.sqlite3'
+
+# Password validation
+# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+    },
+]
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+
+AUTH_USER_MODEL = 'wheretoplayApp.User'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
