@@ -149,6 +149,9 @@ class Vote (models.Model):
         managed = True
         db_table = 'vote'
 
+'''
+AbstractUser has it
+
 class UserPermissions(models.Model):
     user_permission_id = models.AutoField(primary_key=True)
     user_id = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -157,3 +160,4 @@ class UserPermissions(models.Model):
     class Meta:
         managed = True
         db_table = 'user_permissions'
+'''
