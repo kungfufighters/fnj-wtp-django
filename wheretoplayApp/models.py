@@ -60,9 +60,9 @@ class OpportunityCategory(models.Model):
 
 
 class OpportunityStatus(models.Model):
-    opp_status_id = models.AutoField(primary_key=True)
+    status_id = models.AutoField(primary_key=True)
     # Pursue now, keep open, shelve already created in table, map with pk
-    label = models.CharField(max_length=100)
+    label = models.CharField(max_length=100, unique=True)
 
     class Meta:
         managed = True
@@ -71,15 +71,18 @@ class OpportunityStatus(models.Model):
 
 class Opportunity(models.Model):
     opportunity_id = models.AutoField(primary_key=True)
-    workspace_id = models.ForeignKey(Workspace, on_delete=models.CASCADE)
+    workspace_id = models.ForeignKey(Workspace, on_delete=models.CASCADE,null=True, blank=True)
     # Ensure this points to User
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE)
-    opp_category_id = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE)
-    opp_status_id = models.ForeignKey(OpportunityStatus, on_delete=models.CASCADE)
-    opp_name = models.CharField(max_length=100)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities",null=True, blank=True)
+    opp_category_id = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
+    status = models.ForeignKey(OpportunityStatus, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=100)
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
     image = models.ImageField(upload_to='images/', null=True, blank=True)
+
+    def __str__(self):
+        return self.name
 
     class Meta:
         managed = True
