@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from .models import User
+from .models import Opportunity
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -53,3 +54,10 @@ class UserSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])  # Hash the password
         user.save()
         return user
+class OpportunitySerializer(serializers.ModelSerializer):
+    class Meta: 
+        model = Opportunity
+        fields = ('opp_name', 'customer_segment')
+    opp_name = serializers.CharField()
+    customer_segment = serializers.CharField()
+

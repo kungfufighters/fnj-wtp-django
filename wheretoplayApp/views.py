@@ -6,6 +6,9 @@ from rest_framework.response import Response
 from rest_framework import status
 # Assuming you have a RegisterSerializer
 from .serializers import RegisterSerializer
+from .serializers import OpportunitySerializer
+from .models import Opportunity
+from rest_framework.renderers import JSONRenderer
 
 # Utility function to generate tokens for a user
 
@@ -67,3 +70,11 @@ class LoginView(APIView):
         else:
             # Authentication failed
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+class OpportunityView(APIView):
+    def get(self, request):
+        user = self.request.user
+        qs = Opportunity.objects.filter(user_id=1) 
+        serializer = OpportunitySerializer(qs, many=True)
+        return Response({'json': JSONRenderer().render(serializer.data)}, status=status.HTTP_200_OK)
+
