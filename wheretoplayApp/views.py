@@ -8,6 +8,7 @@ from rest_framework import status
 from .serializers import RegisterSerializer
 from .serializers import OpportunitySerializer
 from .models import Opportunity
+from .models import User
 from rest_framework.renderers import JSONRenderer
 
 # Utility function to generate tokens for a user
@@ -73,8 +74,37 @@ class LoginView(APIView):
         
 class OpportunityView(APIView):
     def get(self, request):
-        user = self.request.user
-        qs = Opportunity.objects.filter(user_id=1) 
+        user = request.user
+        print(user.is_authenticated)
+        print(user)
+        qs = Opportunity.objects.filter(user_id=user.id) 
         serializer = OpportunitySerializer(qs, many=True)
         return Response({'json': JSONRenderer().render(serializer.data)}, status=status.HTTP_200_OK)
 
+class ChangeEmailView(APIView):
+    def post(self, request):
+        newEmail = request.data.get('newEmail')
+        user = User.objects.get(id=1)
+        try:
+            user.username = newEmail
+            user.email = newEmail
+            user.save()
+        except:
+            return Response({'message': 'Email may aleady be in use'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        return Response({}, status=status.HTTP_200_OK)
+    
+class ChangePasswordView(APIView):
+    def post(self, request):
+        user = User.objects.get(id=1)
+        password = request.data.get('currentPassword')
+        newPassword = request.data.get('newPassword')
+        confirmNewPassword = request.data.get('confirmNewPassword')
+        if newPassword != confirmNewPassword:
+            return Response({'message': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+        user = authenticate(request, username=user.email, password=password)
+        if user is None:
+            # Authentication failed
+            return Response({'message': 'Unable to authorize'}, status=status.HTTP_401_UNAUTHORIZED)
+        user.set_password(newPassword)
+        user.save()
+        return Response({}, status=status.HTTP_200_OK)  
