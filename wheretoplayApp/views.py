@@ -5,7 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 # Assuming you have a RegisterSerializer
-from .serializers import RegisterSerializer
+from .serializers import RegisterSerializer, OpportunitySerializer
+from rest_framework.permissions import IsAuthenticated
 
 # Utility function to generate tokens for a user
 
@@ -67,3 +68,13 @@ class LoginView(APIView):
         else:
             # Authentication failed
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
+
+class OpportunityCreateView(APIView):
+    # Only authenticated users can create opportunities
+    # permission_classes = [IsAuthenticated] (not yet working)
+    def post(self, request):
+        serializer = OpportunitySerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
