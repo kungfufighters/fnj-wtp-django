@@ -1,12 +1,15 @@
 from django.contrib.auth import authenticate
+from django.template.context_processors import media
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 # Assuming you have a RegisterSerializer
-from .serializers import RegisterSerializer, OpportunitySerializer
+from .serializers import RegisterSerializer, OpportunitySerializer, VoteSerializer
 from rest_framework.permissions import IsAuthenticated
+from .models import Vote
+import numpy as np
 
 # Utility function to generate tokens for a user
 
@@ -78,3 +81,37 @@ class OpportunityCreateView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+def mad_outlier_detection(data: list, threshold=2):
+
+    median = np.median(data)
+    abs_deviation = np.abs(data - median)
+    mad = np.median(abs_deviation)
+    lower_limit = median-(threshold*mad)
+    upper_limit = median+(threshold*mad)
+    outliers = []
+    for i in data:
+        if i < lower_limit or i > upper_limit:
+            outliers.append(i)
+        else:
+            pass
+    return outliers
+
+
+class VoteListView(APIView):
+
+    def get(self, request):
+        queryset = Vote.objects.all()
+        if queryset.exists():
+            serializer = VoteSerializer(queryset, many=True)
+            data = serializer.data
+            score_list = []
+            for vote in data:
+                score = vote.get('vote_score')
+                score_list.append(score)
+            outliers = mad_outlier_detection(score_list)
+            print(f'Users votes for Criteria 1: {score_list}')
+            print(f'Outliers using MAD: {outliers}')
+            return Response(data, status=status.HTTP_200_OK)
+        return Response({'error': 'No votes found'}, status=status.HTTP_400_BAD_REQUEST)
