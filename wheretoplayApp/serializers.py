@@ -84,4 +84,4 @@ class VoteSerializer(serializers.ModelSerializer):
     """ Get vote_score from vote model """
     class Meta:
         model = Vote
-        fields = ['vote_score']
+        fields = ['vote_id','vote_score','criteria_id','voting_session_id']

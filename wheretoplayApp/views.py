@@ -94,8 +94,8 @@ def mad_outlier_detection(data: list, threshold=4.5):
     for i in data:
         if i < lower_limit or i > upper_limit:
             outliers.append(i)
-    else:
-        outliers.append("No outliers detected")
+        else:
+            pass
     return outliers
 
 
