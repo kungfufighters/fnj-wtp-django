@@ -83,7 +83,7 @@ class OpportunityCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-def mad_outlier_detection(data: list, threshold=4.5):
+def mad_outlier_detection(data: list, threshold=2):
 
     median = np.median(data)
     abs_deviation = np.abs(data - median)
@@ -102,13 +102,16 @@ def mad_outlier_detection(data: list, threshold=4.5):
 class VoteListView(APIView):
 
     def get(self, request):
-        serializer = VoteSerializer(Vote.objects.all(), many=True)
-        data = serializer.data
-        score_list = []
-        for vote in data:
-            score = vote.get('vote_score')
-            score_list.append(score)
-        outliers = mad_outlier_detection(score_list)
-        print(f'Users votes for Criteria 1: {score_list}')
-        print(f'Outliers using MAD: {outliers}')
-        return Response(data, status=status.HTTP_200_OK)
+        queryset = Vote.objects.all()
+        if queryset.exists():
+            serializer = VoteSerializer(queryset, many=True)
+            data = serializer.data
+            score_list = []
+            for vote in data:
+                score = vote.get('vote_score')
+                score_list.append(score)
+            outliers = mad_outlier_detection(score_list)
+            print(f'Users votes for Criteria 1: {score_list}')
+            print(f'Outliers using MAD: {outliers}')
+            return Response(data, status=status.HTTP_200_OK)
+        return Response({'error': 'No votes found'}, status=status.HTTP_400_BAD_REQUEST)
