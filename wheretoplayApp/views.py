@@ -75,14 +75,15 @@ class LoginView(APIView):
 class OpportunityDisplayView(APIView):
     def get(self, request):
         user = request.user
-        qs = Opportunity.objects.select_related('opp_status_id').filter(user_id=user.id)
+        qs = Opportunity.objects.select_related('status').filter(user_id=user.id)
 
         toReturn = []
         for obj in qs:
             newD = {}
-            newD['opp_name'] = obj.opp_name
+            newD['name'] = obj.name
             newD['customer_segment']= obj.customer_segment
-            newD['label'] = obj.opp_status_id.label
+            newD['label'] = obj.status.label
+            newD['participants'] = Vote.objects.filter(voting_session=5).values('user').distinct().count()
             toReturn.append(newD)
         
         serializer = OpportunityDisplaySerializer(toReturn, many=True)
