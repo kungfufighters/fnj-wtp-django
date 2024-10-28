@@ -7,7 +7,10 @@ from rest_framework import status
 # Assuming you have a RegisterSerializer
 from .serializers import RegisterSerializer
 from .serializers import OpportunitySerializer
+from .serializers import OpportunityDisplaySerializer
 from .models import Opportunity
+from .models import Vote
+from .models import VotingSession
 from .models import User
 from rest_framework.renderers import JSONRenderer
 
@@ -72,19 +75,32 @@ class LoginView(APIView):
             # Authentication failed
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
         
-class OpportunityView(APIView):
+class OpportunityDisplayView(APIView):
     def get(self, request):
         user = request.user
-        print(user.is_authenticated)
-        print(user)
-        qs = Opportunity.objects.filter(user_id=user.id) 
-        serializer = OpportunitySerializer(qs, many=True)
-        return Response({'json': JSONRenderer().render(serializer.data)}, status=status.HTTP_200_OK)
+        qs = Opportunity.objects.select_related('opp_status_id').filter(user_id=user.id)
+
+        toReturn = []
+        for obj in qs:
+            newD = {}
+            newD['opp_name'] = obj.opp_name
+            newD['customer_segment']= obj.customer_segment
+            newD['label'] = obj.opp_status_id.label
+            toReturn.append(newD)
+        
+        serializer = OpportunityDisplaySerializer(toReturn, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+'''
+class OtherOpportunityView(APIView):
+    def get(self, request):
+'''  
+
 
 class ChangeEmailView(APIView):
     def post(self, request):
         newEmail = request.data.get('newEmail')
-        user = User.objects.get(id=1)
+        user = request.user
         try:
             user.username = newEmail
             user.email = newEmail
@@ -95,7 +111,7 @@ class ChangeEmailView(APIView):
     
 class ChangePasswordView(APIView):
     def post(self, request):
-        user = User.objects.get(id=1)
+        user = request.user
         password = request.data.get('currentPassword')
         newPassword = request.data.get('newPassword')
         confirmNewPassword = request.data.get('confirmNewPassword')

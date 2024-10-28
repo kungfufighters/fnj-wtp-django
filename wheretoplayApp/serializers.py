@@ -54,10 +54,9 @@ class UserSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])  # Hash the password
         user.save()
         return user
-class OpportunitySerializer(serializers.ModelSerializer):
-    class Meta: 
-        model = Opportunity
-        fields = ('opp_name', 'customer_segment')
+    
+class OpportunityDisplaySerializer(serializers.Serializer):
     opp_name = serializers.CharField()
     customer_segment = serializers.CharField()
+    label = serializers.CharField()
 
