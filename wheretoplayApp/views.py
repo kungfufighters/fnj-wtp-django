@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 # Assuming you have a RegisterSerializer
-from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer, VoteSerializer
+from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer, VoteSerializer, EmailDisplaySerializer
 from rest_framework.permissions import IsAuthenticated
 from .models import Vote, Opportunity, VotingSession, User
 import numpy as np
@@ -76,6 +76,7 @@ class OpportunityDisplayView(APIView):
     def get(self, request):
         user = request.user
         qs = Opportunity.objects.select_related('status').filter(user_id=user.id)
+        
 
         toReturn = []
         for obj in qs:
@@ -83,10 +84,29 @@ class OpportunityDisplayView(APIView):
             newD['name'] = obj.name
             newD['customer_segment']= obj.customer_segment
             newD['label'] = obj.status.label
-            newD['participants'] = Vote.objects.filter(voting_session=5).values('user').distinct().count()
+
+            # get the most recent voting session
+            mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.id).latest('end_time').vs_id
+            # temporary for testing
+            mostRecentVotingSession=5
+            newD['participants'] = Vote.objects.filter(voting_session=mostRecentVotingSession).values('user').distinct().count()
+            votes = Vote.objects.filter(voting_session=mostRecentVotingSession)
+            total = 0
+            count = 0
+            for vote in votes:
+                total += vote.vote_score
+                count += 1
+            newD['score'] = total / count
+
             toReturn.append(newD)
         
         serializer = OpportunityDisplaySerializer(toReturn, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class EmailDisplayView(APIView):
+    def get(self, request):
+        user = request.user
+        serializer = EmailDisplaySerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 '''
