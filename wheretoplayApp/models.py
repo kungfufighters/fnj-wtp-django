@@ -1,5 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
+import random
+import qrcode
 
 # Updated User model extending AbstractUser
 
@@ -29,7 +32,7 @@ class Guest(models.Model):
 
 class UserCategory(models.Model):
     user_category_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
     # Owner and Participant already created in table, map with pk
     category_label = models.CharField(max_length=20)
 
@@ -87,6 +90,34 @@ class Opportunity(models.Model):
     class Meta:
         managed = True
         db_table = 'opportunity'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)  # Call the original save method
+
+        # Create a VotingSession whenever a new Opportunity is created
+        if not self.votingsession_set.exists():
+            pin_code = self.generate_unique_pin()
+            url_link = f"{
+                settings.PROTOCOL}://{settings.DOMAIN}/voting/{pin_code}"
+
+            # Create the VotingSession
+            voting_session = VotingSession.objects.create(
+                opportunity=self,
+                code=pin_code,
+                url_link=url_link,
+                start_time=self.created_at,  # Set start time
+                end_time=None,  # Set to None or a specific time if needed
+            )
+
+            # Generate QR Code
+            self.generate_qr_code(url_link)
+
+    def generate_unique_pin(self):
+        while True:
+            pin = str(random.randint(10000, 99999))  # Generate a 5-digit PIN
+            # Check for uniqueness
+            if not VotingSession.objects.filter(code=pin).exists():
+                return pin
 
 
 class VotingStatus(models.Model):

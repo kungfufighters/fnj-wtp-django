@@ -141,7 +141,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=120), # Change to lower # during prod push
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -149,6 +149,9 @@ SIMPLE_JWT = {
 }
 
 AUTH_USER_MODEL = 'wheretoplayApp.User'
+
+PROTOCOL = 'http'  # Use 'https' in production
+DOMAIN = 'localhost:8000'  # Update this to actual domain in production
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
