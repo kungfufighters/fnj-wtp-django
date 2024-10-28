@@ -86,7 +86,7 @@ class OpportunityDisplayView(APIView):
             newD['label'] = obj.status.label
 
             # get the most recent voting session
-            mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.id).latest('end_time').vs_id
+            # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id).latest('end_time').vs_id
             # temporary for testing
             mostRecentVotingSession=5
             newD['participants'] = Vote.objects.filter(voting_session=mostRecentVotingSession).values('user').distinct().count()
