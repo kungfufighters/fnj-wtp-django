@@ -76,14 +76,15 @@ class UserSerializer(serializers.ModelSerializer):
         return user
     
 class OpportunityDisplaySerializer(serializers.Serializer):
-    opp_name = serializers.CharField()
+    name = serializers.CharField()
     customer_segment = serializers.CharField()
     label = serializers.CharField()
+    participants = serializers.IntegerField()
 
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['name', 'customer_segment','description']
+        fields = ['name', 'customer_segment','description', 'status']
 
 class VoteSerializer(serializers.ModelSerializer):
     """ Get vote_score from vote model """
