@@ -1,9 +1,29 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import User
-from .models import Opportunity
+from .models import User, Opportunity, OpportunityStatus, Vote
 
+'''
+class DynamicFieldsModelSerializer(serializers.ModelSerializer):
+    """
+    A ModelSerializer that takes an additional 'fields' argument that
+    controls which fields shoud be displayed.
+    """
+
+    def __init__(self, *args, **kwargs):
+        # Don't pass the 'fields' arg up to the superclass
+        fields = kwargs.pop('fields', None)
+
+        # Instantiate the superclass normally
+        super().__init__(*args, **kwargs)
+
+        if fields is not None:
+            # Drop any fields that are not specified in the 'fields' argument
+            allowed = set(fields)
+            existing = set(self.fields)
+            for field_name in existing - allowed:
+                self.fields.pop(field_name)
+'''
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
@@ -60,3 +80,13 @@ class OpportunityDisplaySerializer(serializers.Serializer):
     customer_segment = serializers.CharField()
     label = serializers.CharField()
 
+class OpportunitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Opportunity
+        fields = ['name', 'customer_segment','description']
+
+class VoteSerializer(serializers.ModelSerializer):
+    """ Get vote_score from vote model """
+    class Meta:
+        model = Vote
+        fields = ['vote_id','vote_score','criteria_id','voting_session_id']

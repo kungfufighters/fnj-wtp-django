@@ -1,3 +1,5 @@
+from lib2to3.pgen2.token import NUMBER
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -29,7 +31,7 @@ class Guest(models.Model):
 
 class UserCategory(models.Model):
     user_category_id = models.AutoField(primary_key=True)
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     # Owner and Participant already created in table, map with pk
     category_label = models.CharField(max_length=20)
 
@@ -42,7 +44,7 @@ class Workspace(models.Model):
     """Owners have their own workspace, and can have multiple"""
     workspace_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100)
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
 
     class Meta:
         managed = True
@@ -60,9 +62,9 @@ class OpportunityCategory(models.Model):
 
 
 class OpportunityStatus(models.Model):
-    opp_status_id = models.AutoField(primary_key=True)
+    status_id = models.AutoField(primary_key=True)
     # Pursue now, keep open, shelve already created in table, map with pk
-    label = models.CharField(max_length=100)
+    label = models.CharField(max_length=100, unique=True)
 
     class Meta:
         managed = True
@@ -71,15 +73,18 @@ class OpportunityStatus(models.Model):
 
 class Opportunity(models.Model):
     opportunity_id = models.AutoField(primary_key=True)
-    workspace_id = models.ForeignKey(Workspace, on_delete=models.CASCADE)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE,null=True, blank=True)
     # Ensure this points to User
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE)
-    opp_category_id = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE)
-    opp_status_id = models.ForeignKey(OpportunityStatus, on_delete=models.CASCADE)
-    opp_name = models.CharField(max_length=100)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities",null=True, blank=True)
+    opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
+    status = models.ForeignKey(OpportunityStatus, on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=100)
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
     image = models.ImageField(upload_to='images/', null=True, blank=True)
+
+    def __str__(self):
+        return self.name
 
     class Meta:
         managed = True
@@ -97,10 +102,12 @@ class VotingStatus(models.Model):
 
 class VotingSession(models.Model):
     vs_id = models.AutoField(primary_key=True)
-    opportunity_id = models.ForeignKey(Opportunity, on_delete=models.CASCADE)
-    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE)
-    code = models.CharField(max_length=100)
-    url_link = models.CharField(max_length=100)
+    # For now let it be null
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, null=True, blank=True)
+    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
+    code = models.CharField(max_length=100, null=True, blank=True)
+    url_link = models.CharField(max_length=100, null=True, blank=True)
+    # Until here
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
 
@@ -110,11 +117,12 @@ class VotingSession(models.Model):
 
 
 class SessionParticipant(models.Model):
+    """ This one would have to be in Vote """
     participant_id = models.AutoField(primary_key=True)
-    vs_id = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
+    voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
     # Ensure this points to User
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    guest_id = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
 
     class Meta:
         managed = True
@@ -125,7 +133,7 @@ class VoteCriteria(models.Model):
     criteria_id = models.AutoField(primary_key=True)
     # Reason to buy, Market Volume, etc.
     criteria_label = models.CharField(max_length=100)
-    description = models.TextField()
+    description = models.TextField(null=True, blank=True)
     min_score = models.IntegerField(default=1)
     max_score = models.IntegerField()
 
@@ -136,11 +144,11 @@ class VoteCriteria(models.Model):
 
 class Vote (models.Model):
     vote_id = models.AutoField(primary_key=True)
-    vs_id = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
-    criteria_id = models.ForeignKey(VoteCriteria, on_delete=models.CASCADE)
+    voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
+    criteria = models.ForeignKey(VoteCriteria, on_delete=models.CASCADE)
     # Ensure this points to User
-    user_id = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    guest_id = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
     # If outlier, prompt explanation
     vote_score = models.IntegerField(default=0)
     user_vote_explanation = models.TextField(null=True, blank=True)
