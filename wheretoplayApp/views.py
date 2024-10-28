@@ -6,9 +6,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 # Assuming you have a RegisterSerializer
-from .serializers import RegisterSerializer, OpportunitySerializer, VoteSerializer
+from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer, VoteSerializer
 from rest_framework.permissions import IsAuthenticated
-from .models import Vote
+from .models import Vote, Opportunity, VotingSession, User
 import numpy as np
 
 # Utility function to generate tokens for a user
@@ -71,6 +71,56 @@ class LoginView(APIView):
         else:
             # Authentication failed
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+class OpportunityDisplayView(APIView):
+    def get(self, request):
+        user = request.user
+        qs = Opportunity.objects.select_related('opp_status_id').filter(user_id=user.id)
+
+        toReturn = []
+        for obj in qs:
+            newD = {}
+            newD['opp_name'] = obj.opp_name
+            newD['customer_segment']= obj.customer_segment
+            newD['label'] = obj.opp_status_id.label
+            toReturn.append(newD)
+        
+        serializer = OpportunityDisplaySerializer(toReturn, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+'''
+class OtherOpportunityView(APIView):
+    def get(self, request):
+'''  
+
+
+class ChangeEmailView(APIView):
+    def post(self, request):
+        newEmail = request.data.get('newEmail')
+        user = request.user
+        try:
+            user.username = newEmail
+            user.email = newEmail
+            user.save()
+        except:
+            return Response({'message': 'Email may aleady be in use'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        return Response({}, status=status.HTTP_200_OK)
+    
+class ChangePasswordView(APIView):
+    def post(self, request):
+        user = request.user
+        password = request.data.get('currentPassword')
+        newPassword = request.data.get('newPassword')
+        confirmNewPassword = request.data.get('confirmNewPassword')
+        if newPassword != confirmNewPassword:
+            return Response({'message': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+        user = authenticate(request, username=user.email, password=password)
+        if user is None:
+            # Authentication failed
+            return Response({'message': 'Unable to authorize'}, status=status.HTTP_401_UNAUTHORIZED)
+        user.set_password(newPassword)
+        user.save()
+        return Response({}, status=status.HTTP_200_OK)  
 
 class OpportunityCreateView(APIView):
     # Only authenticated users can create opportunities
