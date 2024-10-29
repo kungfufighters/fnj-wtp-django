@@ -14,5 +14,6 @@ urlpatterns = [
     path('api/change/email/', ChangeEmailView.as_view(), name='owner_opp_query'),
     path('api/change/password/', ChangePasswordView.as_view(), name='owner_opp_query'),
     path('api/create_opportunity/', OpportunityCreateView.as_view(), name='create_opportunity'),
+    path('api/create_workspace/', WorkspaceCreateView.as_view(), name='create_workspace'),
     path('api/vote_list/', VoteListView.as_view(), name='vote_list'),
 ]

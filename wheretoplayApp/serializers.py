@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Opportunity, OpportunityStatus, Vote
+from .models import User, Opportunity, Vote, Workspace
 
 '''
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -85,10 +85,15 @@ class OpportunityDisplaySerializer(serializers.Serializer):
 class EmailDisplaySerializer(serializers.Serializer):
     email = serializers.CharField()
 
+class WorkspaceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Workspace
+        fields = ['workspace_id', 'name', 'user']
+
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['name', 'customer_segment','description', 'status']
+        fields = ['name', 'customer_segment','description', 'status', 'workspace', 'user']
 
 class VoteSerializer(serializers.ModelSerializer):
     """ Get vote_score from vote model """
