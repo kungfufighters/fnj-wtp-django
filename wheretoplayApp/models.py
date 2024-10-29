@@ -38,17 +38,31 @@ class UserCategory(models.Model):
         db_table = 'user_category'
 
 
+
+
 class Workspace(models.Model):
     """Owners have their own workspace, and can have multiple"""
     workspace_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE,null=True)
+    code = models.CharField(max_length=100, null=True, blank=True)
+    url_link = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
         managed = True
         db_table = 'workspace'
 
+class VotesFor(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
 
+    class Meta:
+        managed = True
+        db_table = 'votes_for'
+
+
+# Deemed unnecessary at FNJ meeting #5
+'''
 class OpportunityCategory(models.Model):
     opp_category_id = models.AutoField(primary_key=True)
     # Product or Service already created in table, map with pk
@@ -57,8 +71,9 @@ class OpportunityCategory(models.Model):
     class Meta:
         managed = True
         db_table = 'opportunity_category'
+'''
 
-
+'''
 class OpportunityStatus(models.Model):
     status_id = models.AutoField(primary_key=True)
     # Pursue now, keep open, shelve already created in table, map with pk
@@ -67,6 +82,7 @@ class OpportunityStatus(models.Model):
     class Meta:
         managed = True
         db_table = 'opportunity_status'
+'''
 
 
 class Opportunity(models.Model):
@@ -74,8 +90,8 @@ class Opportunity(models.Model):
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE,null=True, blank=True)
     # Ensure this points to User
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities",null=True, blank=True)
-    opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
-    status = models.ForeignKey(OpportunityStatus, on_delete=models.CASCADE, null=True, blank=True)
+    # opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
+    status = models.CharField(max_length=100, null=True, blank=True)
     name = models.CharField(max_length=100)
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
@@ -102,9 +118,12 @@ class VotingSession(models.Model):
     vs_id = models.AutoField(primary_key=True)
     # For now let it be null
     opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, null=True, blank=True)
-    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
+    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True) 
+    '''
+    MOVE INTO WORKSPACE
     code = models.CharField(max_length=100, null=True, blank=True)
     url_link = models.CharField(max_length=100, null=True, blank=True)
+    '''
     # Until here
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
