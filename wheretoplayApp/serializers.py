@@ -95,6 +95,9 @@ class OpportunitySerializer(serializers.ModelSerializer):
         model = Opportunity
         fields = ['name', 'customer_segment','description', 'status', 'workspace', 'user']
 
+class IDSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+
 class VoteSerializer(serializers.ModelSerializer):
     """ Get vote_score from vote model """
     class Meta:
