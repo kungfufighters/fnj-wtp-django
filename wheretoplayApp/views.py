@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 # Assuming you have a RegisterSerializer
 from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer
-from .serializers import VoteSerializer, EmailDisplaySerializer, WorkspaceSerializer
+from .serializers import VoteSerializer, EmailDisplaySerializer, WorkspaceSerializer, IDSerializer
 from rest_framework.permissions import IsAuthenticated
 from .models import Vote, Opportunity, VotingSession, User, Workspace
 import numpy as np
@@ -164,6 +164,16 @@ class OpportunityCreateView(APIView):
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class GetID(APIView):
+    def get(self, request):
+        user = request.user
+        dataa = {}
+        dataa['id'] = user.id
+        serializer = IDSerializer(data=dataa)
+        if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
