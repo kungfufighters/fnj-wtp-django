@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 # Assuming you have a RegisterSerializer
 from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer
-from .serializers import VoteSerializer, EmailDisplaySerializer, WorkspaceSerializer
+from .serializers import VoteSerializer, EmailDisplaySerializer, WorkspaceSerializer, IDSerializer
 from rest_framework.permissions import IsAuthenticated
 from .models import Vote, Opportunity, VotingSession, User, Workspace
 import numpy as np
@@ -144,14 +144,26 @@ class ChangePasswordView(APIView):
         user.save()
         return Response({}, status=status.HTTP_200_OK)  
     
+import random
+import string
+
 class WorkspaceCreateView(APIView):
     def post(self, request):
         user = request.user
-        request.data['user'] = user.id
+        code = request.data.get('code')  # Retrieve code from request data
+
+        # Generate a code if not provided
+        if not code:
+            code = ''.join(random.choices(string.digits, k=5))  # Example: '12345'
+        
+        request.data['code'] = code  # Ensure code is set in request data
+        request.data['user'] = user.id  # Set the user in request data
+
         serializer = WorkspaceSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -200,3 +212,13 @@ class VoteListView(APIView):
             print(f'Outliers using MAD: {outliers}')
             return Response(data, status=status.HTTP_200_OK)
         return Response({'error': 'No votes found'}, status=status.HTTP_400_BAD_REQUEST)
+    
+class GetID(APIView):
+    def get(self, request):
+        user = request.user
+        dataa = {}
+        dataa['id'] = user.id
+        serializer = IDSerializer(data=dataa)
+        if serializer.is_valid():
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/query/owneropps/', OpportunityDisplayView.as_view(), name='owner_opp_query'),
+    path('api/query/id/', GetID.as_view(), name='id_query'),
     path('api/query/email/', EmailDisplayView.as_view(), name='owner_opp_query'),
     path('api/change/email/', ChangeEmailView.as_view(), name='owner_opp_query'),
     path('api/change/password/', ChangePasswordView.as_view(), name='owner_opp_query'),

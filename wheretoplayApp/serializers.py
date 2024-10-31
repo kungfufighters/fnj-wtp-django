@@ -88,7 +88,7 @@ class EmailDisplaySerializer(serializers.Serializer):
 class WorkspaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workspace
-        fields = ['workspace_id', 'name', 'user']
+        fields = ['workspace_id', 'name', 'user', 'code']
 
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
@@ -100,3 +100,6 @@ class VoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vote
         fields = ['vote_id','vote_score','criteria_id','voting_session_id']
+        
+class IDSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
