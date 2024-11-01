@@ -131,12 +131,14 @@ class VotingStatus(models.Model):
 
 class VotingSession(models.Model):
     vs_id = models.AutoField(primary_key=True)
-    # For now let it be null
-    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, null=True, blank=True)
-    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
-    code = models.CharField(max_length=100, null=True, blank=True)
-    url_link = models.CharField(max_length=100, null=True, blank=True)
-    # Until here
+    opportunity = models.ForeignKey(
+        Opportunity, on_delete=models.CASCADE, null=True, blank=True)
+    voting_status = models.ForeignKey(
+        VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
+    code = models.CharField(max_length=5, unique=True,
+                            null=True, blank=True)  # Store 5-digit PIN
+    url_link = models.URLField(
+        max_length=200, null=True, blank=True)  # Store URL for QR code
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
 

@@ -1,3 +1,5 @@
+from django.http import HttpResponse
+import qrcode
 from django.contrib.auth import authenticate
 from django.template.context_processors import media
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -5,11 +7,11 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-# Assuming you have a RegisterSerializer
 from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer, VoteSerializer
 from rest_framework.permissions import IsAuthenticated
 from .models import Vote, Opportunity, VotingSession, User
 import numpy as np
+import random
 
 # Utility function to generate tokens for a user
 
@@ -123,16 +125,56 @@ class ChangePasswordView(APIView):
         user.save()
         return Response({}, status=status.HTTP_200_OK)  
 
+
+def generate_unique_pin():
+    """Generate a unique 5-digit PIN."""
+    while True:
+        pin = f"{random.randint(10000, 99999)}"
+        if not VotingSession.objects.filter(code=pin).exists():
+            return pin
+
 class OpportunityCreateView(APIView):
-    # Only authenticated users can create opportunities
-    # permission_classes = [IsAuthenticated] (not yet working)
     def post(self, request):
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Save the opportunity
+            opportunity = serializer.save(user=request.user)
 
+            # Generate the voting session for the new opportunity
+            pin_code = generate_unique_pin()
+            # Construct the URL with the pin code
+            url_link = f"{request.build_absolute_uri('/vote/')}{pin_code}"
+
+            # Create a new voting session with the URL and PIN
+            voting_session = VotingSession.objects.create(
+                opportunity=opportunity,
+                code=pin_code,
+                url_link=url_link
+            )
+
+            return Response({
+                'opportunity': serializer.data,
+                'voting_session': {
+                    'pin': pin_code,
+                    'url': url_link
+                }
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class VotingSessionQRCodeView(APIView):
+    def get(self, request, pin):
+        try:
+            # Retrieve the voting session by PIN code
+            voting_session = VotingSession.objects.get(code=pin)
+            url = voting_session.url_link
+
+            # Generate the QR code
+            qr = qrcode.make(url)
+            response = HttpResponse(content_type="image/png")
+            qr.save(response, "PNG")
+            return response
+
+        except VotingSession.DoesNotExist:
+            return Response({"error": "Voting session not found."}, status=status.HTTP_404_NOT_FOUND)
 
 def mad_outlier_detection(data: list, threshold=2):
 
