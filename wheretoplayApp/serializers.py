@@ -93,7 +93,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['name', 'customer_segment','description', 'status', 'workspace', 'user']
+        fields = ['name', 'customer_segment','description', 'image','status', 'workspace', 'user']
 
 class VoteSerializer(serializers.ModelSerializer):
     """ Get vote_score from vote model """
