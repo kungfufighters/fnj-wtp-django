@@ -158,8 +158,6 @@ class WorkspaceCreateView(APIView):
 
 
 class OpportunityCreateView(APIView):
-    # Only authenticated users can create opportunities
-    # permission_classes = [IsAuthenticated] (not yet working)
     def post(self, request):
         user = request.user
         request.data['user'] = user.id

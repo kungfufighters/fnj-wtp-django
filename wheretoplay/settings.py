@@ -13,9 +13,21 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import environ, os, sys
+import cloudinary
+
+
 
 env = environ.Env()
 environ.Env.read_env()
+
+# Cloudinary Settings
+cloudinary.config(
+    cloud_name=env('CLOUD_NAME'),
+    api_key=env('API_KEY'),
+    api_secret=env('API_SECRET')
+)
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,6 +58,8 @@ CHANNEL_LAYERS = {
 INSTALLED_APPS = [
     "channels",
     "corsheaders",
+    'cloudinary',
+    'cloudinary_storage',
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
