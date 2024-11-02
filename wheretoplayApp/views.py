@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from django.contrib.auth import authenticate
 from django.template.context_processors import media
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -163,14 +165,22 @@ class WorkspaceCreateView(APIView):
 
 
 class OpportunityCreateView(APIView):
-    # Only authenticated users can create opportunities
-    # permission_classes = [IsAuthenticated] (not yet working)
     def post(self, request):
         user = request.user
         request.data['user'] = user.id
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class GetID(APIView):
+    def get(self, request):
+        user = request.user
+        dataa = {}
+        dataa['id'] = user.id
+        serializer = IDSerializer(data=dataa)
+        if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -186,8 +196,8 @@ def mad_outlier_detection(data: list, threshold=2):
     for i in data:
         if i < lower_limit or i > upper_limit:
             outliers.append(i)
-        else:
-            pass
+    if not outliers:
+        outliers.append("No outliers detected")
     return outliers
 
 
@@ -198,13 +208,12 @@ class VoteListView(APIView):
         if queryset.exists():
             serializer = VoteSerializer(queryset, many=True)
             data = serializer.data
+            grouped_scores = defaultdict(list)
             score_list = []
-            for vote in data:
-                score = vote.get('vote_score')
-                score_list.append(score)
-            outliers = mad_outlier_detection(score_list)
-            print(f'Users votes for Criteria 1: {score_list}')
-            print(f'Outliers using MAD: {outliers}')
+            for item in data:
+                grouped_scores[item['criteria_id']].append(item["vote_score"])
+            for criteria_id, vote_score in grouped_scores.items():
+                print(f'Criteria ID: {criteria_id}: {vote_score}, Outliers: {mad_outlier_detection(vote_score)}')
             return Response(data, status=status.HTTP_200_OK)
         return Response({'error': 'No votes found'}, status=status.HTTP_400_BAD_REQUEST)
     

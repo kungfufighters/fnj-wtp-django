@@ -1,5 +1,6 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from channels.db import database_sync_to_async
 import json
 from wheretoplayApp.models import Vote, VotingSession, Workspace, Opportunity
 

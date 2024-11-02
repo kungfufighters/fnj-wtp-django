@@ -1,3 +1,4 @@
+from cloudinary.models import CloudinaryField
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -58,7 +59,7 @@ class Opportunity(models.Model):
     name = models.CharField(max_length=100)
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
-    image = models.ImageField(upload_to='images/', null=True, blank=True)
+    image = CloudinaryField('Image', overwrite=True, format='jpg')
 
     def __str__(self):
         return self.name
