@@ -39,59 +39,22 @@ class UserCategory(models.Model):
         db_table = 'user_category'
 
 
-
-
 class Workspace(models.Model):
-    """Owners have their own workspace, and can have multiple"""
     workspace_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100)
-    user = models.ForeignKey(User, on_delete=models.CASCADE,null=True)
-    code = models.CharField(max_length=100, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    code = models.CharField(max_length=100, unique=True)  # Used as the active session code
     url_link = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
         managed = True
         db_table = 'workspace'
 
-class VotesFor(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
-
-    class Meta:
-        managed = True
-        db_table = 'votes_for'
-
-
-# Deemed unnecessary at FNJ meeting #5
-'''
-class OpportunityCategory(models.Model):
-    opp_category_id = models.AutoField(primary_key=True)
-    # Product or Service already created in table, map with pk
-    label = models.CharField(max_length=100)
-
-    class Meta:
-        managed = True
-        db_table = 'opportunity_category'
-'''
-
-'''
-class OpportunityStatus(models.Model):
-    status_id = models.AutoField(primary_key=True)
-    # Pursue now, keep open, shelve already created in table, map with pk
-    label = models.CharField(max_length=100, unique=True)
-
-    class Meta:
-        managed = True
-        db_table = 'opportunity_status'
-'''
-
 
 class Opportunity(models.Model):
     opportunity_id = models.AutoField(primary_key=True)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE,null=True, blank=True)
-    # Ensure this points to User
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities",null=True, blank=True)
-    # opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
     status = models.CharField(max_length=100, null=True, blank=True)
     name = models.CharField(max_length=100)
     customer_segment = models.CharField(max_length=100)
@@ -106,6 +69,19 @@ class Opportunity(models.Model):
         db_table = 'opportunity'
 
 
+class Vote(models.Model):
+    vote_id = models.AutoField(primary_key=True)
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE)  # Tied directly to an Opportunity
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    vote_score = models.IntegerField(default=0)
+    criteria_id = models.IntegerField(null=True, blank=True) 
+    user_vote_explanation = models.TextField(null=True, blank=True)
+
+    class Meta:
+        managed = True
+        db_table = 'vote'
+
+
 class VotingStatus(models.Model):
     voting_status_id = models.AutoField(primary_key=True)
     voting_status = models.BooleanField(default=False)
@@ -116,16 +92,9 @@ class VotingStatus(models.Model):
 
 
 class VotingSession(models.Model):
-    vs_id = models.AutoField(primary_key=True)
-    # For now let it be null
-    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, null=True, blank=True)
-    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True) 
-    '''
-    MOVE INTO WORKSPACE
-    code = models.CharField(max_length=100, null=True, blank=True)
-    url_link = models.CharField(max_length=100, null=True, blank=True)
-    '''
-    # Until here
+    session_id = models.AutoField(primary_key=True)
+    code = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name='voting_sessions', null=True, blank=True)
+    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
 
@@ -135,45 +104,14 @@ class VotingSession(models.Model):
 
 
 class SessionParticipant(models.Model):
-    """ This one would have to be in Vote """
     participant_id = models.AutoField(primary_key=True)
     voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
-    # Ensure this points to User
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
 
     class Meta:
         managed = True
         db_table = 'session_participant'
 
-
-class VoteCriteria(models.Model):
-    criteria_id = models.AutoField(primary_key=True)
-    # Reason to buy, Market Volume, etc.
-    criteria_label = models.CharField(max_length=100)
-    description = models.TextField(null=True, blank=True)
-    min_score = models.IntegerField(default=1)
-    max_score = models.IntegerField()
-
-    class Meta:
-        managed = True
-        db_table = 'vote_criteria'
-
-
-class Vote (models.Model):
-    vote_id = models.AutoField(primary_key=True)
-    voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
-    criteria = models.ForeignKey(VoteCriteria, on_delete=models.CASCADE)
-    # Ensure this points to User
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
-    # If outlier, prompt explanation
-    vote_score = models.IntegerField(default=0)
-    user_vote_explanation = models.TextField(null=True, blank=True)
-
-    class Meta:
-        managed = True
-        db_table = 'vote'
 
 '''
 AbstractUser has it
