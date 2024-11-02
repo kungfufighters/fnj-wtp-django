@@ -151,10 +151,6 @@ class WorkspaceCreateView(APIView):
     def post(self, request):
         user = request.user
         code = request.data.get('code')  # Retrieve code from request data
-
-        # Generate a code if not provided
-        if not code:
-            code = ''.join(random.choices(string.digits, k=5))  # Example: '12345'
         
         request.data['code'] = code  # Ensure code is set in request data
         request.data['user'] = user.id  # Set the user in request data
@@ -163,7 +159,6 @@ class WorkspaceCreateView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
