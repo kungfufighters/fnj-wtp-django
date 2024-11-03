@@ -75,36 +75,39 @@ class LoginView(APIView):
             # Authentication failed
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
         
-class OpportunityDisplayView(APIView):
+class WorkspaceDisplayView(APIView):
     def get(self, request):
         user = request.user
-        qs = Opportunity.objects.filter(user_id=user.id)
+        wss = Workspace.objects.filter(user_id=user.id)
+        workspaces = []
+        for ws in wss:
+            os = Opportunity.objects.filter(workspace=ws.workspace_id)
+            opportunities = []
+            for obj in os:
+                newD = {}
+                newD['name'] = obj.name
+                newD['customer_segment']= obj.customer_segment
+                newD['label'] = obj.status if obj.status != None else "TBD"
+
+                # get the most recent voting session
+                # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
+                # temporary for testing
+                oppid = 5
+                newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
+                votes = Vote.objects.filter(opportunity=oppid)
+                total = 0
+                count = 0
+                for vote in votes:
+                    total += vote.vote_score
+                    count += 1
+                newD['score'] = total / count if count != 0 else 0
+
+                opportunities.append(newD)
+            serializer = OpportunityDisplaySerializer(opportunities, many=True)
+            workspaces.append((ws.name, serializer.data))
         
-
-        toReturn = []
-        for obj in qs:
-            newD = {}
-            newD['name'] = obj.name
-            newD['customer_segment']= obj.customer_segment
-            newD['label'] = obj.status if obj.status != None else "TBD"
-
-            # get the most recent voting session
-            # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
-            # temporary for testing
-            mostRecentVotingSession=5
-            newD['participants'] = Vote.objects.filter(voting_session=mostRecentVotingSession).values('user').distinct().count()
-            votes = Vote.objects.filter(voting_session=mostRecentVotingSession)
-            total = 0
-            count = 0
-            for vote in votes:
-                total += vote.vote_score
-                count += 1
-            newD['score'] = total / count
-
-            toReturn.append(newD)
         
-        serializer = OpportunityDisplaySerializer(toReturn, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(workspaces, status=status.HTTP_200_OK)
     
 class EmailDisplayView(APIView):
     def get(self, request):
