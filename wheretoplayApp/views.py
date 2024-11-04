@@ -10,6 +10,7 @@ from rest_framework import status
 # Assuming you have a RegisterSerializer
 from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer
 from .serializers import VoteSerializer, EmailDisplaySerializer, WorkspaceSerializer, IDSerializer
+from .serializers import OpportunityResultsSerializer 
 from rest_framework.permissions import IsAuthenticated
 from .models import Vote, Opportunity, VotingSession, User, Workspace
 import numpy as np
@@ -92,7 +93,7 @@ class WorkspaceDisplayView(APIView):
                 # get the most recent voting session
                 # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
                 # temporary for testing
-                oppid = 5
+                oppid = obj.opportunity_id
                 newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
                 votes = Vote.objects.filter(opportunity=oppid)
                 total = 0
@@ -101,11 +102,9 @@ class WorkspaceDisplayView(APIView):
                     total += vote.vote_score
                     count += 1
                 newD['score'] = total / count if count != 0 else 0
-
                 opportunities.append(newD)
             serializer = OpportunityDisplaySerializer(opportunities, many=True)
-            workspaces.append((ws.name, serializer.data))
-        
+            workspaces.append((ws.name, ws.code, serializer.data))
         
         return Response(workspaces, status=status.HTTP_200_OK)
     
@@ -177,6 +176,51 @@ class OpportunityCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+class GetResults(APIView):
+    def get(self, request):
+        user = request.user
+        session = request.query_params.get('code')
+        try:
+            ws = Workspace.objects.filter(code=session)[0]
+            if user.id != ws.user.id:
+                 return Response({'message': "You are not the owner"}, status=status.HTTP_403_FORBIDDEN)
+            os = Opportunity.objects.filter(workspace=ws.workspace_id)
+        except:
+            return Response({'message': f"No workspace with session code {session}"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        
+
+        opportunities = []
+        for obj in os:
+            newD = {}
+            reasons = ['' for i in range(6)]
+            oppid = obj.opportunity_id
+            vs = Vote.objects.filter(opportunity=oppid)
+            cur_votes = [ [0]*5 for i in range(6)]
+            for v in vs:
+                cur_votes[v.criteria_id - 1][v.vote_score - 1]+=1
+                if v.user_vote_explanation != None:
+                    if reasons[v.criteria_id - 1] != "":
+                        reasons[v.criteria_id - 1] += '; '
+                    reasons[v.criteria_id - 1] += 'Vote=' + str(v.vote_score) + ': ' + v.user_vote_explanation
+            newD['name'] = obj.name
+            newD['customer_segment'] = obj.customer_segment
+            newD['description'] = obj.description
+            newD['cur_votes'] = cur_votes
+            for i in range(6):
+                if reasons[i] == '':
+                    reasons[i] = 'No outliers'
+            newD['reasons'] = reasons
+            opportunities.append(newD)
+
+        serializer = OpportunityResultsSerializer(data=opportunities, many=True)
+        if serializer.is_valid():
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        print(serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)             
+                
+
+
+    
 class GetID(APIView):
     def get(self, request):
         user = request.user
@@ -220,12 +264,3 @@ class VoteListView(APIView):
             return Response(data, status=status.HTTP_200_OK)
         return Response({'error': 'No votes found'}, status=status.HTTP_400_BAD_REQUEST)
     
-class GetID(APIView):
-    def get(self, request):
-        user = request.user
-        dataa = {}
-        dataa['id'] = user.id
-        serializer = IDSerializer(data=dataa)
-        if serializer.is_valid():
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
