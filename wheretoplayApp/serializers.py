@@ -106,3 +106,17 @@ class VoteSerializer(serializers.ModelSerializer):
         
 class IDSerializer(serializers.Serializer):
     id = serializers.IntegerField()
+
+class OpportunityResultsSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    customer_segment = serializers.CharField()
+    description = serializers.CharField()
+    cur_votes = serializers.ListField(
+        child = serializers.ListField(
+            child = serializers.IntegerField()
+        )
+    )
+    reasons = serializers.ListField(
+        child = serializers.CharField()
+    )
+
