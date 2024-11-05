@@ -9,9 +9,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer, VoteSerializer
 from rest_framework.permissions import IsAuthenticated
-from .models import Vote, Opportunity, VotingSession, User
+from .models import *
 import numpy as np
 import random
+import os
 
 # Utility function to generate tokens for a user
 
@@ -96,7 +97,6 @@ class OtherOpportunityView(APIView):
     def get(self, request):
 '''  
 
-
 class ChangeEmailView(APIView):
     def post(self, request):
         newEmail = request.data.get('newEmail')
@@ -142,8 +142,9 @@ class OpportunityCreateView(APIView):
 
             # Generate the voting session for the new opportunity
             pin_code = generate_unique_pin()
-            # Construct the URL with the pin code
-            url_link = f"{request.build_absolute_uri('/vote/')}{pin_code}"
+
+            # Construct the URL with the pin code for the voting session
+            url_link = f"{request.build_absolute_uri('/api/voting_session/')}{pin_code}/qr_code/"
 
             # Create a new voting session with the URL and PIN
             voting_session = VotingSession.objects.create(
@@ -152,14 +153,40 @@ class OpportunityCreateView(APIView):
                 url_link=url_link
             )
 
+            # Generate the QR code for this session URL
+            qr_image_path = self.generate_qr_code(url_link, pin_code)
+
             return Response({
                 'opportunity': serializer.data,
                 'voting_session': {
                     'pin': pin_code,
-                    'url': url_link
+                    'url': url_link,
+                    'qr_code_path': qr_image_path
                 }
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def generate_qr_code(self, url_link, pin_code):
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(url_link)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Define the path for saving the QR code
+        directory = 'qr_codes'
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        img_path = os.path.join(directory, f"{pin_code}.png")  # Use pin_code for the filename
+        img.save(img_path)
+        return img_path
+    
 class VotingSessionQRCodeView(APIView):
     def get(self, request, pin):
         try:

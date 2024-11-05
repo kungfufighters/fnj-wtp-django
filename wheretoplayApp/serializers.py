@@ -51,6 +51,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
         return user
+    
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     password2 = serializers.CharField(write_only=True)
@@ -84,7 +85,7 @@ class OpportunityDisplaySerializer(serializers.Serializer):
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['name', 'customer_segment','description', 'status']
+        fields = ['title', 'customer_segment','description', 'status']
 
 class VoteSerializer(serializers.ModelSerializer):
     """ Get vote_score from vote model """

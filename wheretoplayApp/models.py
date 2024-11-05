@@ -1,7 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+from django.utils import timezone
 import random
+import os
 import qrcode
 
 # Updated User model extending AbstractUser
@@ -74,38 +76,38 @@ class OpportunityStatus(models.Model):
 
 class Opportunity(models.Model):
     opportunity_id = models.AutoField(primary_key=True)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE,null=True, blank=True)
-    # Ensure this points to User
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities",null=True, blank=True)
-    opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities", null=True, blank=True)
+    opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE, null=True, blank=True)
     status = models.ForeignKey(OpportunityStatus, on_delete=models.CASCADE, null=True, blank=True)
-    name = models.CharField(max_length=100)
+    title = models.CharField(max_length=255, default="Untitled")
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
     image = models.ImageField(upload_to='images/', null=True, blank=True)
 
     def __str__(self):
-        return self.name
+        return self.title  # Updated to return the title instead of self.name
 
     class Meta:
         managed = True
         db_table = 'opportunity'
 
     def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)  # Call the original save method
+        # Save the instance first
+        super().save(*args, **kwargs)
 
-        # Create a VotingSession whenever a new Opportunity is created
-        if not self.votingsession_set.exists():
+        # Now we can safely access self.id
+        if not self.votingsession_set.exists():  # Only create if it doesn't exist
             pin_code = self.generate_unique_pin()
-            url_link = f"{
-                settings.PROTOCOL}://{settings.DOMAIN}/voting/{pin_code}"
+            url_link = f"{settings.PROTOCOL}://{settings.DOMAIN}/voting/{pin_code}"
 
             # Create the VotingSession
-            voting_session = VotingSession.objects.create(
+            VotingSession.objects.create(
                 opportunity=self,
                 code=pin_code,
                 url_link=url_link,
-                start_time=self.created_at,  # Set start time
+                start_time=self.created_at,
                 end_time=None,  # Set to None or a specific time if needed
             )
 
@@ -115,9 +117,29 @@ class Opportunity(models.Model):
     def generate_unique_pin(self):
         while True:
             pin = str(random.randint(10000, 99999))  # Generate a 5-digit PIN
-            # Check for uniqueness
-            if not VotingSession.objects.filter(code=pin).exists():
+            if not VotingSession.objects.filter(code=pin).exists():  # Check for uniqueness
                 return pin
+            
+    def generate_qr_code(self, url_link):
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(url_link)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Define the path for saving the QR code
+        directory = 'qr_codes'
+        if not os.path.exists(directory):
+            os.makedirs(directory)  # Create the directory if it doesn't exist
+
+        img_path = os.path.join(directory, f"{self.opportunity_id}.png")  # Use opportunity_id for the filename
+        img.save(img_path)
+        return img_path
 
 
 class VotingStatus(models.Model):
