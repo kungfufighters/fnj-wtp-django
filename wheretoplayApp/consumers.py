@@ -116,12 +116,12 @@ class VotingConsumer(AsyncWebsocketConsumer):
             return [0, 0, 0, 0, 0]
 
     # Outlier detection function based on Median Absolute Deviation
-    def mad_outlier_detection(self, data, current_vote, threshold=1):
+    def mad_outlier_detection(self, data, current_vote, threshold=2):
         if not data:
             return False
         
         dataa = []
-        for i in range(4):
+        for i in range(5):
             for j in range(data[i]):
                 dataa.append(i + 1)
 
