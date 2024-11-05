@@ -7,9 +7,17 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+<<<<<<< HEAD
 from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer, VoteSerializer
 from rest_framework.permissions import IsAuthenticated
 from .models import *
+=======
+# Assuming you have a RegisterSerializer
+from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer
+from .serializers import VoteSerializer, EmailDisplaySerializer, WorkspaceSerializer
+from rest_framework.permissions import IsAuthenticated
+from .models import Vote, Opportunity, VotingSession, User, Workspace
+>>>>>>> dev
 import numpy as np
 import random
 import os
@@ -78,18 +86,38 @@ class LoginView(APIView):
 class OpportunityDisplayView(APIView):
     def get(self, request):
         user = request.user
-        qs = Opportunity.objects.select_related('status').filter(user_id=user.id)
+        qs = Opportunity.objects.filter(user_id=user.id)
+        
 
         toReturn = []
         for obj in qs:
             newD = {}
             newD['name'] = obj.name
             newD['customer_segment']= obj.customer_segment
-            newD['label'] = obj.status.label
-            newD['participants'] = Vote.objects.filter(voting_session=5).values('user').distinct().count()
+            newD['label'] = obj.status if obj.status != None else "TBD"
+
+            # get the most recent voting session
+            # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
+            # temporary for testing
+            mostRecentVotingSession=5
+            newD['participants'] = Vote.objects.filter(voting_session=mostRecentVotingSession).values('user').distinct().count()
+            votes = Vote.objects.filter(voting_session=mostRecentVotingSession)
+            total = 0
+            count = 0
+            for vote in votes:
+                total += vote.vote_score
+                count += 1
+            newD['score'] = total / count
+
             toReturn.append(newD)
         
         serializer = OpportunityDisplaySerializer(toReturn, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class EmailDisplayView(APIView):
+    def get(self, request):
+        user = request.user
+        serializer = EmailDisplaySerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 '''
@@ -124,6 +152,17 @@ class ChangePasswordView(APIView):
         user.set_password(newPassword)
         user.save()
         return Response({}, status=status.HTTP_200_OK)  
+    
+class WorkspaceCreateView(APIView):
+    def post(self, request):
+        user = request.user
+        request.data['user'] = user.id
+        serializer = WorkspaceSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 def generate_unique_pin():
@@ -135,6 +174,8 @@ def generate_unique_pin():
 
 class OpportunityCreateView(APIView):
     def post(self, request):
+        user = request.user
+        request.data['user'] = user.id
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
             # Save the opportunity
