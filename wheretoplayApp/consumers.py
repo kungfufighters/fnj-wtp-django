@@ -120,7 +120,12 @@ class VotingConsumer(AsyncWebsocketConsumer):
         if not data:
             return False
         
-        data_array = np.array(data)
+        dataa = []
+        for i in range(4):
+            for j in range(data[i]):
+                dataa.append(i + 1)
+
+        data_array = np.array(dataa)
         median = np.median(data_array)
         abs_deviation = np.abs(data_array - median)
         mad = np.median(abs_deviation)
