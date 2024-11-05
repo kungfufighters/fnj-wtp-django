@@ -1,7 +1,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from channels.db import database_sync_to_async
 import json
+import numpy as np
 from wheretoplayApp.models import Vote, VotingSession, Workspace, Opportunity
 
 class VotingConsumer(AsyncWebsocketConsumer):
@@ -28,15 +28,34 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}")
 
             if votes and session_id and user_id:
-                await self.insert_vote(session_id, user_id, votes[0]['vote_score'], votes[0]['criteria_id'])
+                vote_score = votes[0]['vote_score']
+                criteria_id = votes[0]['criteria_id']
+                
+                # Insert the vote
+                await self.insert_vote(session_id, user_id, vote_score, criteria_id)
+                
+                # Fetch updated votes to check for outliers
+                current_votes = await self.get_votes(criteria_id, session_id)
+                
+                # Check if the new vote is an outlier
+                is_outlier = self.mad_outlier_detection(current_votes, vote_score)
+                if is_outlier:
+                    print(f"This is an outlier! User ID: {user_id}, Criteria: {criteria_id}, Vote: {vote_score}")
+                    await self.send(text_data=json.dumps({
+                        'outlier': True,
+                        'criteria_id': criteria_id,
+                        'user_id': user_id,
+                    }))
+                else:
+                    print("Vote is not an outlier.")
 
                 # Broadcast the vote to other users in the session
                 await self.channel_layer.group_send(
                     self.voting_session,
                     {
                         'type': 'broadcast_protocol',
-                        'criteria_id': votes[0]['criteria_id'],
-                        'vote_score': votes[0]['vote_score'],
+                        'criteria_id': criteria_id,
+                        'vote_score': vote_score,
                         'session_id': session_id,
                         'user_id': user_id,
                     }
@@ -96,19 +115,18 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print(f"Error retrieving votes: {e}")
             return [0, 0, 0, 0, 0]
 
+    # Outlier detection function based on Median Absolute Deviation
+    def mad_outlier_detection(self, data, current_vote, threshold=1):
+        if not data:
+            return False
+        
+        data_array = np.array(data)
+        median = np.median(data_array)
+        abs_deviation = np.abs(data_array - median)
+        mad = np.median(abs_deviation)
+        lower_limit = median - (threshold * mad)
+        upper_limit = median + (threshold * mad)
 
-    # @database_sync_to_async
-    # def detect_outliers(self, votes, current_vote_score, threshold=2):
-    #     """
-    #     Use Median Absolute Deviation (MAD) to detect if a vote is an outlier.
-    #     """
-    #     votes_array = np.array(votes)
-    #     median = np.median(votes_array)
-    #     abs_deviation = np.abs(votes_array - median)
-    #     mad = np.median(abs_deviation)
-    #     lower_limit = median - (threshold * mad)
-    #     upper_limit = median + (threshold * mad)
-
-    #     is_outlier = not (lower_limit <= current_vote_score <= upper_limit)
-    #     print(f"Vote {current_vote_score} is {'an outlier' if is_outlier else 'not an outlier'} for criteria.")
-    #     return is_outlier
+        # Check if current vote is an outlier
+        is_outlier = not (lower_limit <= current_vote <= upper_limit)
+        return is_outlier
