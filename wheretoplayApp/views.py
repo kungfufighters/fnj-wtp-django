@@ -2,22 +2,16 @@ from django.http import HttpResponse
 import qrcode
 from django.contrib.auth import authenticate
 from django.template.context_processors import media
+from django.core.mail import send_mail
+from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-<<<<<<< HEAD
-from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer, VoteSerializer
+from rest_framework import status, permissions
+from .serializers import *
 from rest_framework.permissions import IsAuthenticated
 from .models import *
-=======
-# Assuming you have a RegisterSerializer
-from .serializers import RegisterSerializer, OpportunitySerializer, OpportunityDisplaySerializer
-from .serializers import VoteSerializer, EmailDisplaySerializer, WorkspaceSerializer
-from rest_framework.permissions import IsAuthenticated
-from .models import Vote, Opportunity, VotingSession, User, Workspace
->>>>>>> dev
 import numpy as np
 import random
 import os
@@ -40,8 +34,6 @@ class HealthView(APIView):
         return Response(response, status=status.HTTP_200_OK)
 
 # Signup view to register new users and issue JWT tokens
-
-
 class SignupView(APIView):
     def post(self, request, *args, **kwargs):
         # Log incoming request data
@@ -63,6 +55,17 @@ class SignupView(APIView):
         print("Serializer errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class GuestCreateView(APIView):
+    permission_classes = []  # Allow all users
+
+    def post(self, request):
+        serializer = GuestSerializer(data=request.data)
+        if serializer.is_valid():
+            guest = serializer.save()
+            return Response({'guest_id': guest.guest_id}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 class LoginView(APIView):
     def post(self, request, *args, **kwargs):
         # Extract email and password from the request
@@ -83,41 +86,38 @@ class LoginView(APIView):
             # Authentication failed
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
         
+
+class WorkspaceCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = WorkspaceSerializer(data=request.data)
+        if serializer.is_valid():
+            workspace = serializer.save(user=request.user)
+            return Response({
+                'workspace_id': workspace.workspace_id,
+                'name': workspace.name,
+                'code': workspace.code 
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 class OpportunityDisplayView(APIView):
     def get(self, request):
         user = request.user
-        qs = Opportunity.objects.filter(user_id=user.id)
-        
+        qs = Opportunity.objects.select_related('status').filter(user_id=user.id)
 
         toReturn = []
         for obj in qs:
             newD = {}
             newD['name'] = obj.name
             newD['customer_segment']= obj.customer_segment
-            newD['label'] = obj.status if obj.status != None else "TBD"
-
-            # get the most recent voting session
-            # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
-            # temporary for testing
-            mostRecentVotingSession=5
-            newD['participants'] = Vote.objects.filter(voting_session=mostRecentVotingSession).values('user').distinct().count()
-            votes = Vote.objects.filter(voting_session=mostRecentVotingSession)
-            total = 0
-            count = 0
-            for vote in votes:
-                total += vote.vote_score
-                count += 1
-            newD['score'] = total / count
-
+            newD['label'] = obj.status.label
+            newD['participants'] = Vote.objects.filter(voting_session=5).values('user').distinct().count()
             toReturn.append(newD)
         
         serializer = OpportunityDisplaySerializer(toReturn, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-class EmailDisplayView(APIView):
-    def get(self, request):
-        user = request.user
-        serializer = EmailDisplaySerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 '''
@@ -152,17 +152,6 @@ class ChangePasswordView(APIView):
         user.set_password(newPassword)
         user.save()
         return Response({}, status=status.HTTP_200_OK)  
-    
-class WorkspaceCreateView(APIView):
-    def post(self, request):
-        user = request.user
-        request.data['user'] = user.id
-        serializer = WorkspaceSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 def generate_unique_pin():
@@ -172,61 +161,38 @@ def generate_unique_pin():
         if not VotingSession.objects.filter(code=pin).exists():
             return pin
 
+
 class OpportunityCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
     def post(self, request):
-        user = request.user
-        request.data['user'] = user.id
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
-            # Save the opportunity
             opportunity = serializer.save(user=request.user)
+            # Retrieve the voting session associated with the opportunity
+            voting_session = opportunity.votingsession_set.first()
 
-            # Generate the voting session for the new opportunity
-            pin_code = generate_unique_pin()
+            if voting_session:
+                protocol = 'https' if request.is_secure() else 'http'
+                domain = request.get_host()
 
-            # Construct the URL with the pin code for the voting session
-            url_link = f"{request.build_absolute_uri('/api/voting_session/')}{pin_code}/qr_code/"
+                # Build the QR code URL
+                qr_code_url = f"{protocol}://{domain}/media/qr_codes/{voting_session.code}.png"
 
-            # Create a new voting session with the URL and PIN
-            voting_session = VotingSession.objects.create(
-                opportunity=opportunity,
-                code=pin_code,
-                url_link=url_link
-            )
-
-            # Generate the QR code for this session URL
-            qr_image_path = self.generate_qr_code(url_link, pin_code)
-
-            return Response({
-                'opportunity': serializer.data,
-                'voting_session': {
-                    'pin': pin_code,
-                    'url': url_link,
-                    'qr_code_path': qr_image_path
-                }
-            }, status=status.HTTP_201_CREATED)
+                # Prepare response data
+                return Response({
+                    'opportunity': serializer.data,
+                    'voting_session': {
+                        'pin': voting_session.code,
+                        'url_link': voting_session.url_link,
+                        'qr_code_url': qr_code_url
+                    }
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({'error': 'Voting session not created'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def generate_qr_code(self, url_link, pin_code):
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(url_link)
-        qr.make(fit=True)
 
-        img = qr.make_image(fill_color="black", back_color="white")
-        
-        # Define the path for saving the QR code
-        directory = 'qr_codes'
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-
-        img_path = os.path.join(directory, f"{pin_code}.png")  # Use pin_code for the filename
-        img.save(img_path)
-        return img_path
     
 class VotingSessionQRCodeView(APIView):
     def get(self, request, pin):
@@ -243,6 +209,84 @@ class VotingSessionQRCodeView(APIView):
 
         except VotingSession.DoesNotExist:
             return Response({"error": "Voting session not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class VotingSessionDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pin_code):
+        try:
+            voting_session = VotingSession.objects.get(code=pin_code)
+            protocol = 'https' if request.is_secure() else 'http'
+            domain = request.get_host()
+
+            # Build the QR code URL
+            qr_code_url = f"{protocol}://{domain}/media/qr_codes/{voting_session.code}.png"
+
+            data = {
+                'voting_session': {
+                    'code': voting_session.code,
+                    'url_link': voting_session.url_link,
+                    'qr_code_url': qr_code_url,
+                    'opportunity_name': voting_session.opportunity.name,
+                    'opportunity_description': voting_session.opportunity.description,
+                    # Add any other details you need
+                }
+            }
+            return Response(data, status=status.HTTP_200_OK)
+        except VotingSession.DoesNotExist:
+            return Response({'error': 'Voting session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SendInviteEmailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        recipient_email = request.data.get('email')
+        pin_code = request.data.get('pin_code')
+
+        if not recipient_email or not pin_code:
+            return Response({'error': 'Email and pin_code are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            voting_session = VotingSession.objects.get(code=pin_code)
+            protocol = 'https' if request.is_secure() else 'http'
+            domain = request.get_host()
+            invite_link = f"{protocol}://{domain}/voting/{pin_code}"
+
+            # Compose email
+            subject = 'You are invited to a voting session'
+            message = f"Please join the voting session using the following link: {invite_link}"
+            from_email = settings.DEFAULT_FROM_EMAIL
+            recipient_list = [recipient_email]
+
+            # Send email
+            send_mail(subject, message, from_email, recipient_list)
+
+            return Response({'message': 'Invite email sent successfully'}, status=status.HTTP_200_OK)
+        except VotingSession.DoesNotExist:
+            return Response({'error': 'Voting session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SubmitVoteView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        data = request.data.copy()
+        if request.user.is_authenticated:
+            data['user'] = request.user.id
+        else:
+            guest_id = request.data.get('guest_id')
+            if not guest_id:
+                return Response({'error': 'Guest ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            data['guest'] = guest_id
+
+        serializer = VoteSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Vote submitted'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 def mad_outlier_detection(data: list, threshold=2):
 

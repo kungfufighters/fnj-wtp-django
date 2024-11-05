@@ -53,6 +53,18 @@ class Workspace(models.Model):
     code = models.CharField(max_length=100, null=True, blank=True)
     url_link = models.CharField(max_length=100, null=True, blank=True)
 
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self.generate_unique_code()
+        super().save(*args, **kwargs)
+
+    def generate_unique_code(self):
+        # Implement unique code generation logic here
+        while True:
+            code = str(random.randint(10000, 99999))
+            if not Workspace.objects.filter(code=code).exists():
+                return code
+
     class Meta:
         managed = True
         db_table = 'workspace'
@@ -97,7 +109,7 @@ class Opportunity(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities",null=True, blank=True)
     # opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
     status = models.CharField(max_length=100, null=True, blank=True)
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, default="Untitled Opportunity")
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
     image = models.ImageField(upload_to='images/', null=True, blank=True)
@@ -111,6 +123,7 @@ class Opportunity(models.Model):
 
     def save(self, *args, **kwargs):
         # Save the instance first
+        is_new = self._state.adding
         super().save(*args, **kwargs)
 
         # Now we can safely access self.id
@@ -170,7 +183,11 @@ class VotingStatus(models.Model):
 class VotingSession(models.Model):
     vs_id = models.AutoField(primary_key=True)
     opportunity = models.ForeignKey(
-        Opportunity, on_delete=models.CASCADE, null=True, blank=True)
+        Opportunity,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
     voting_status = models.ForeignKey(
         VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
     code = models.CharField(max_length=5, unique=True,
