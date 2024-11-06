@@ -4,7 +4,6 @@ from django.conf import settings
 from django.utils import timezone
 import random
 import os
-import qrcode
 
 # Updated User model extending AbstractUser
 
@@ -41,17 +40,14 @@ class UserCategory(models.Model):
     class Meta:
         managed = True
         db_table = 'user_category'
-
-
-
+        
 
 class Workspace(models.Model):
-    """Owners have their own workspace, and can have multiple"""
     workspace_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100)
-    user = models.ForeignKey(User, on_delete=models.CASCADE,null=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
     code = models.CharField(max_length=100, null=True, blank=True)
-    url_link = models.CharField(max_length=100, null=True, blank=True)
+    url_link = models.CharField(max_length=200, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -59,7 +55,6 @@ class Workspace(models.Model):
         super().save(*args, **kwargs)
 
     def generate_unique_code(self):
-        # Implement unique code generation logic here
         while True:
             code = str(random.randint(10000, 99999))
             if not Workspace.objects.filter(code=code).exists():
@@ -68,6 +63,8 @@ class Workspace(models.Model):
     class Meta:
         managed = True
         db_table = 'workspace'
+
+        
 
 class VotesFor(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -104,71 +101,21 @@ class OpportunityStatus(models.Model):
 
 class Opportunity(models.Model):
     opportunity_id = models.AutoField(primary_key=True)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE,null=True, blank=True)
-    # Ensure this points to User
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities",null=True, blank=True)
-    # opp_category = models.ForeignKey(OpportunityCategory, on_delete=models.CASCADE,null=True, blank=True)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities", null=True, blank=True)
     status = models.CharField(max_length=100, null=True, blank=True)
     name = models.CharField(max_length=100, default="Untitled Opportunity")
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
     image = models.ImageField(upload_to='images/', null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
-        return self.title  # Updated to return the title instead of self.name
+        return self.name
 
     class Meta:
         managed = True
         db_table = 'opportunity'
-
-    def save(self, *args, **kwargs):
-        # Save the instance first
-        is_new = self._state.adding
-        super().save(*args, **kwargs)
-
-        # Now we can safely access self.id
-        if not self.votingsession_set.exists():  # Only create if it doesn't exist
-            pin_code = self.generate_unique_pin()
-            url_link = f"{settings.PROTOCOL}://{settings.DOMAIN}/voting/{pin_code}"
-
-            # Create the VotingSession
-            VotingSession.objects.create(
-                opportunity=self,
-                code=pin_code,
-                url_link=url_link,
-                start_time=self.created_at,
-                end_time=None,  # Set to None or a specific time if needed
-            )
-
-            # Generate QR Code
-            self.generate_qr_code(url_link)
-
-    def generate_unique_pin(self):
-        while True:
-            pin = str(random.randint(10000, 99999))  # Generate a 5-digit PIN
-            if not VotingSession.objects.filter(code=pin).exists():  # Check for uniqueness
-                return pin
-            
-    def generate_qr_code(self, url_link):
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
-        )
-        qr.add_data(url_link)
-        qr.make(fit=True)
-
-        img = qr.make_image(fill_color="black", back_color="white")
-        
-        # Define the path for saving the QR code
-        directory = 'qr_codes'
-        if not os.path.exists(directory):
-            os.makedirs(directory)  # Create the directory if it doesn't exist
-
-        img_path = os.path.join(directory, f"{self.opportunity_id}.png")  # Use opportunity_id for the filename
-        img.save(img_path)
-        return img_path
 
 
 class VotingStatus(models.Model):
@@ -182,27 +129,14 @@ class VotingStatus(models.Model):
 
 class VotingSession(models.Model):
     vs_id = models.AutoField(primary_key=True)
-    opportunity = models.ForeignKey(
-        Opportunity,
+    workspace = models.ForeignKey(
+        Workspace,
         on_delete=models.CASCADE,
         null=True,
         blank=True
     )
-    voting_status = models.ForeignKey(
-        VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
-    code = models.CharField(max_length=5, unique=True,
-                            null=True, blank=True)  # Store 5-digit PIN
-    url_link = models.URLField(
-        max_length=200, null=True, blank=True)  # Store URL for QR code
-    # For now let it be null
-    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, null=True, blank=True)
-    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True) 
-    '''
-    MOVE INTO WORKSPACE
-    code = models.CharField(max_length=100, null=True, blank=True)
-    url_link = models.CharField(max_length=100, null=True, blank=True)
-    '''
-    # Until here
+    code = models.CharField(max_length=5, unique=True, null=True, blank=True)  # Store 5-digit PIN
+    url_link = models.URLField(max_length=200, null=True, blank=True)
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
 
@@ -237,14 +171,13 @@ class VoteCriteria(models.Model):
         db_table = 'vote_criteria'
 
 
-class Vote (models.Model):
+class Vote(models.Model):
     vote_id = models.AutoField(primary_key=True)
     voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, null=True, blank=True)
     criteria = models.ForeignKey(VoteCriteria, on_delete=models.CASCADE)
-    # Ensure this points to User
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     guest = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
-    # If outlier, prompt explanation
     vote_score = models.IntegerField(default=0)
     user_vote_explanation = models.TextField(null=True, blank=True)
 
