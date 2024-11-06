@@ -13,21 +13,9 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import environ, os, sys
-import cloudinary
-
-
 
 env = environ.Env()
 environ.Env.read_env()
-
-# Cloudinary Settings
-#cloudinary.config(
-    #cloud_name=env('CLOUD_NAME'),
-    #api_key=env('API_KEY'),
-    #api_secret=env('API_SECRET')
-#)
-
-#DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -58,8 +46,6 @@ CHANNEL_LAYERS = {
 INSTALLED_APPS = [
     "channels",
     "corsheaders",
-    #'cloudinary',
-    #'cloudinary_storage',
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -134,7 +120,7 @@ DATABASES = {
         'NAME': env('DATABASE_NAME'),
         'USER': env('DATABASE_USER'),
         'PASSWORD': env("DATABASE_PASS"),
-        'HOST': 'localhost',
+        'HOST': env("HOST_NAME"),
         'PORT': '3306',
     }
 }
@@ -155,14 +141,34 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=120),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=120), # Change to lower # during prod push
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+# Email Configuration 
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = env('EMAIL_USER')
+EMAIL_HOST_PASSWORD = env('EMAIL_PASSWORD')
+DEFAULT_FROM_EMAIL = 'Where-to-Play <fnj.wheretoplay@gmail.com>'
+
+
 AUTH_USER_MODEL = 'wheretoplayApp.User'
+
+USE_HTTPS = False  # Change to True in production
+PROTOCOL = 'http'  # Use 'https' in production
+DOMAIN = 'localhost:3000'  # Update this to actual domain in production
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

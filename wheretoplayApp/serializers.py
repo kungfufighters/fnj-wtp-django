@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Opportunity, Vote, Workspace
+from .models import *
 
 '''
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -51,6 +51,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
         return user
+    
+
+class GuestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Guest
+        fields = ['guest_id', 'first_name', 'last_name', 'email']
+        read_only_fields = ['guest_id']
+
+    
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     password2 = serializers.CharField(write_only=True)
@@ -80,8 +89,7 @@ class OpportunityDisplaySerializer(serializers.Serializer):
     customer_segment = serializers.CharField()
     label = serializers.CharField()
     participants = serializers.IntegerField()
-    scoreP = serializers.FloatField()
-    scoreC = serializers.FloatField()
+    score = serializers.FloatField()
 
 class EmailDisplaySerializer(serializers.Serializer):
     email = serializers.CharField()
@@ -89,25 +97,21 @@ class EmailDisplaySerializer(serializers.Serializer):
 class WorkspaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workspace
-        fields = ['workspace_id', 'name', 'user', 'code']
+        fields = ['workspace_id', 'name', 'user']
 
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['name', 'customer_segment','description', 'image','status', 'workspace', 'user']
-
-class IDSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
+        fields = ['opportunity_id', 'name', 'customer_segment', 'description', 'status', 'workspace', 'user']
 
 class VoteSerializer(serializers.ModelSerializer):
-    """ Get vote_score from vote model """
     class Meta:
         model = Vote
-        fields = ['vote_id','vote_score','criteria_id','voting_session_id']
+        fields = '__all__'
         
 class IDSerializer(serializers.Serializer):
     id = serializers.IntegerField()
-
+    
 class OpportunityResultsSerializer(serializers.Serializer):
     name = serializers.CharField()
     customer_segment = serializers.CharField()
@@ -119,7 +123,4 @@ class OpportunityResultsSerializer(serializers.Serializer):
     )
     reasons = serializers.ListField(
         child = serializers.CharField()
-    
     )
-    imgurl = serializers.CharField()
-

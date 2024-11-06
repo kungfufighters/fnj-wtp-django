@@ -1,3 +1,9 @@
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.conf import settings
+from django.utils import timezone
+import random
+import os
 from cloudinary.models import CloudinaryField
 from django.db import models
 from django.contrib.auth.models import AbstractUser
@@ -43,8 +49,19 @@ class Workspace(models.Model):
     workspace_id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
-    code = models.CharField(max_length=100, unique=True)  # Used as the active session code
-    url_link = models.CharField(max_length=100, null=True, blank=True)
+    code = models.CharField(max_length=100, null=True, blank=True)
+    url_link = models.CharField(max_length=200, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = self.generate_unique_code()
+        super().save(*args, **kwargs)
+
+    def generate_unique_code(self):
+        while True:
+            code = str(random.randint(10000, 99999))
+            if not Workspace.objects.filter(code=code).exists():
+                return code
 
     class Meta:
         managed = True
