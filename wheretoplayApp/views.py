@@ -96,12 +96,19 @@ class WorkspaceDisplayView(APIView):
                 oppid = obj.opportunity_id
                 newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
                 votes = Vote.objects.filter(opportunity=oppid)
-                total = 0
-                count = 0
+                totalP = 0
+                countP = 0
+                totalC = 0
+                countC = 0
                 for vote in votes:
-                    total += vote.vote_score
-                    count += 1
-                newD['score'] = total / count if count != 0 else 0
+                    if vote.criteria_id <= 3:
+                        totalP += vote.vote_score
+                        countP += 1
+                    else:
+                        totalC += vote.vote_score
+                        countC += 1
+                newD['scoreP'] = totalP / countP if countP != 0 else 0
+                newD['scoreC'] = totalC / countC if countC != 0 else 0
                 opportunities.append(newD)
             serializer = OpportunityDisplaySerializer(opportunities, many=True)
             workspaces.append((ws.name, ws.code, serializer.data))
@@ -210,13 +217,29 @@ class GetResults(APIView):
                 if reasons[i] == '':
                     reasons[i] = 'No outliers'
             newD['reasons'] = reasons
+            newD['imgurl'] = obj.image.url if obj.image != None else '../../wtp.png'
+            print(newD)
             opportunities.append(newD)
 
         serializer = OpportunityResultsSerializer(data=opportunities, many=True)
         if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_200_OK)
         print(serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)             
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)    
+
+class CreateReason(APIView):
+    def post(self, request):
+        pass    
+
+
+class DeleteUser(APIView):  
+    def post(self, request):
+        try:
+            user = request.user
+            user.delete()
+            return Response({}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': e.message}, status=status.HTTP_400_BAD_REQUEST)
                 
 
 

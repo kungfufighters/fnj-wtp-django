@@ -11,6 +11,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/query/owneropps/', WorkspaceDisplayView.as_view(), name='owner_opp_query'),
     path('api/query/oppresults/', GetResults.as_view(), name='opp_results_query'),
+    path('api/query/change_vote/', CreateReason.as_view(), name='create_reason'),
     path('api/query/id/', GetID.as_view(), name='id_query'),
     path('api/query/email/', EmailDisplayView.as_view(), name='email_query'),
     path('api/change/email/', ChangeEmailView.as_view(), name='email_change'),
@@ -18,4 +19,5 @@ urlpatterns = [
     path('api/create_opportunity/', OpportunityCreateView.as_view(), name='create_opportunity'),
     path('api/create_workspace/', WorkspaceCreateView.as_view(), name='create_workspace'),
     path('api/vote_list/', VoteListView.as_view(), name='vote_list'),
+    path('api/delete_user/', DeleteUser.as_view(), name='delete_user'),
 ]

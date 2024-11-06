@@ -80,7 +80,8 @@ class OpportunityDisplaySerializer(serializers.Serializer):
     customer_segment = serializers.CharField()
     label = serializers.CharField()
     participants = serializers.IntegerField()
-    score = serializers.FloatField()
+    scoreP = serializers.FloatField()
+    scoreC = serializers.FloatField()
 
 class EmailDisplaySerializer(serializers.Serializer):
     email = serializers.CharField()
@@ -118,5 +119,7 @@ class OpportunityResultsSerializer(serializers.Serializer):
     )
     reasons = serializers.ListField(
         child = serializers.CharField()
+    
     )
+    imgurl = serializers.CharField()
 
