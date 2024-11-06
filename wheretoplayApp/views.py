@@ -1,9 +1,7 @@
 
 from django.http import HttpResponse
-import qrcode
-
+# import qrcode
 from collections import defaultdict
-
 from django.contrib.auth import authenticate
 from django.template.context_processors import media
 from django.core.mail import send_mail
@@ -159,8 +157,23 @@ class WorkspaceByCodeView(APIView):
         }
 
         return Response(data, status=status.HTTP_200_OK)
+    
+class WorkspaceCreateView(APIView):
+    def post(self, request):
+        user = request.user
+        # code = request.data.get('code')  # Retrieve code from request data
+        
+        # request.data['code'] = code  # Ensure code is set in request data
+        request.data['user'] = user.id  # Set the user in request data
+
+        serializer = WorkspaceSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+'''
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -198,7 +211,7 @@ class WorkspaceCreateView(APIView):
                 }
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+'''
         
 class WorkspaceDisplayView(APIView):
     def get(self, request):
@@ -244,7 +257,17 @@ class EmailDisplayView(APIView):
         user = request.user
         serializer = EmailDisplaySerializer(user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-        
+    
+class AddReasonView(APIView):
+    def post(self, request):
+        reason = request.data.get('reason')
+        criteria_id = request.data.get('criteria_id')
+        opportunity_id = request.data.get('opportunity_id')
+        user = request.user
+        v = Vote.objects.filter(user=user.id, criteria_id=criteria_id, opportunity=opportunity_id)[0]
+        v.user_vote_explanation = reason
+        v.save()
+        return Response({}, status=status.HTTP_200_OK)
 
 class ChangeEmailView(APIView):
     def post(self, request):
@@ -275,6 +298,7 @@ class ChangePasswordView(APIView):
         user.save()
         return Response({}, status=status.HTTP_200_OK)  
 
+'''
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -309,7 +333,7 @@ class WorkspaceCreateView(APIView):
                 }
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+'''
 
 def generate_unique_pin():
     """Generate a unique 5-digit PIN."""
@@ -330,7 +354,7 @@ class OpportunityCreateView(APIView):
 
 
 class SendInviteEmailView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    #permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         recipient_email = request.data.get('email')
@@ -340,9 +364,10 @@ class SendInviteEmailView(APIView):
             return Response({'error': 'Email and session_pin are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            voting_session = VotingSession.objects.get(code=session_pin)
+            # voting_session = VotingSession.objects.get(code=session_pin)
             protocol = 'https' if request.is_secure() else 'http'
-            domain = request.get_host()
+            #domain = request.get_host()
+            domain = settings.DOMAIN
             invite_link = f"{protocol}://{domain}/voting/{session_pin}"
 
             # Compose email
@@ -355,8 +380,46 @@ class SendInviteEmailView(APIView):
             send_mail(subject, message, from_email, recipient_list)
 
             return Response({'message': 'Invite email sent successfully'}, status=status.HTTP_200_OK)
-        except VotingSession.DoesNotExist:
-            return Response({'error': 'Voting session not found'}, status=status.HTTP_404_NOT_FOUND)
+        except:
+            return Response({'error': 'Voting session not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+# Same as results for now, shoudl change for security later    
+class GetVoting(APIView):
+    def get(self, request):
+        user = request.user
+        session = request.query_params.get('code')
+        ws = Workspace.objects.filter(code=session)[0]
+        os = Opportunity.objects.filter(workspace=ws.workspace_id)
+
+        opportunities = []
+        for obj in os:
+            newD = {}
+            reasons = ['' for i in range(6)]
+            oppid = obj.opportunity_id
+            vs = Vote.objects.filter(opportunity=oppid)
+            cur_votes = [ [0]*5 for i in range(6)]
+            for v in vs:
+                cur_votes[v.criteria_id - 1][v.vote_score - 1]+=1
+                if v.user_vote_explanation != None:
+                    if reasons[v.criteria_id - 1] != "":
+                        reasons[v.criteria_id - 1] += '; '
+                    reasons[v.criteria_id - 1] += 'Vote=' + str(v.vote_score) + ': ' + v.user_vote_explanation
+            newD['name'] = obj.name
+            newD['customer_segment'] = obj.customer_segment
+            newD['description'] = obj.description
+            newD['opportunity_id'] = obj.opportunity_id
+            for i in range(6):
+                if reasons[i] == '':
+                    reasons[i] = 'No outliers'
+            newD['reasons'] = reasons
+            newD['imgurl'] = obj.image.url if obj.image != None else '../../wtp.png'
+            opportunities.append(newD)
+
+        serializer = OpportunityVotingSerializer(data=opportunities, many=True)
+        if serializer.is_valid():
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        print(serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class GetResults(APIView):
@@ -393,12 +456,12 @@ class GetResults(APIView):
                 if reasons[i] == '':
                     reasons[i] = 'No outliers'
             newD['reasons'] = reasons
+            newD['imgurl'] = obj.image.url if obj.image != None else '../../wtp.png'
             opportunities.append(newD)
 
         serializer = OpportunityResultsSerializer(data=opportunities, many=True)
         if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_200_OK)
-        print(serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)             
                 
     

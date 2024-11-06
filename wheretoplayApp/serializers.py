@@ -89,7 +89,8 @@ class OpportunityDisplaySerializer(serializers.Serializer):
     customer_segment = serializers.CharField()
     label = serializers.CharField()
     participants = serializers.IntegerField()
-    score = serializers.FloatField()
+    scoreP = serializers.FloatField()
+    scoreC = serializers.FloatField()
 
 class EmailDisplaySerializer(serializers.Serializer):
     email = serializers.CharField()
@@ -97,12 +98,12 @@ class EmailDisplaySerializer(serializers.Serializer):
 class WorkspaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workspace
-        fields = ['workspace_id', 'name', 'user']
+        fields = ['workspace_id', 'name', 'user', 'code']
 
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['opportunity_id', 'name', 'customer_segment', 'description', 'status', 'workspace', 'user']
+        fields = ['opportunity_id', 'name', 'customer_segment', 'description', 'image', 'status', 'workspace', 'user']
 
 class VoteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -124,3 +125,14 @@ class OpportunityResultsSerializer(serializers.Serializer):
     reasons = serializers.ListField(
         child = serializers.CharField()
     )
+    imgurl = serializers.CharField()
+
+class OpportunityVotingSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    customer_segment = serializers.CharField()
+    description = serializers.CharField()
+    opportunity_id = serializers.IntegerField()
+    reasons = serializers.ListField(
+        child = serializers.CharField()
+    )
+    imgurl = serializers.CharField()

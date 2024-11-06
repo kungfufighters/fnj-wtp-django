@@ -6,7 +6,7 @@ from wheretoplayApp.models import Vote, VotingSession, Workspace, Opportunity
 
 class VotingConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.voting_session = '12345'
+        self.voting_session = self.scope['url_route']['kwargs']['code']
         await self.channel_layer.group_add(
             self.voting_session,
             self.channel_name
@@ -22,20 +22,21 @@ class VotingConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             votes = data.get('votes')
+            opportunity_id = data.get('opportunity_id')
             session_id = data.get('session_id')
             user_id = data.get('user_id')
 
-            print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}")
+            print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, opportunity_id: {opportunity_id}")
 
             if votes and session_id and user_id:
                 vote_score = votes[0]['vote_score']
                 criteria_id = votes[0]['criteria_id']
                 
                 # Insert the vote
-                await self.insert_vote(session_id, user_id, vote_score, criteria_id)
+                await self.insert_vote(session_id, user_id, vote_score, criteria_id, opportunity_id)
                 
                 # Fetch updated votes to check for outliers
-                current_votes = await self.get_votes(criteria_id, session_id)
+                current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
                 # Check if the new vote is an outlier
                 is_outlier = self.mad_outlier_detection(current_votes, vote_score)
@@ -58,6 +59,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
                         'vote_score': vote_score,
                         'session_id': session_id,
                         'user_id': user_id,
+                        'opportunity_id': opportunity_id,
                     }
                 )
             else:
@@ -66,10 +68,11 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print("Error decoding JSON data")
 
     @database_sync_to_async
-    def insert_vote(self, session_id, user_id, score, category):
+    def insert_vote(self, session_id, user_id, score, category, opportunity_id):
         try:
-            workspace = Workspace.objects.get(code=session_id)
-            opportunity = Opportunity.objects.filter(workspace=workspace).first()
+            #workspace = Workspace.objects.get(code=session_id)
+            #opportunity = Opportunity.objects.filter(workspace=workspace).first()
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id)[0]
 
             if opportunity:
                 Vote.objects.create(
@@ -86,7 +89,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
 
     async def broadcast_protocol(self, event):
         try:
-            votes = await self.get_votes(event['criteria_id'], event['session_id'])
+            votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
             await self.send(text_data=json.dumps({
                 'result': votes,
                 'criteria_id': event['criteria_id']
@@ -96,10 +99,11 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print(f"Error in broadcast_protocol: {e}")
 
     @database_sync_to_async
-    def get_votes(self, criteria_id, session_id):
+    def get_votes(self, criteria_id, session_id, opportunity_id):
         try:
-            workspace = Workspace.objects.get(code=session_id)
-            opportunity = Opportunity.objects.filter(workspace=workspace).first()
+            #workspace = Workspace.objects.get(code=session_id)
+            #opportunity = Opportunity.objects.filter(workspace=workspace).first()
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id)[0]
             votes = Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
 
             vote_counts = [0, 0, 0, 0, 0]
@@ -122,7 +126,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
         
         dataa = []
         for i in range(5):
-            for j in range(data[i]):
+            for _ in range(data[i]):
                 dataa.append(i + 1)
 
         data_array = np.array(dataa)

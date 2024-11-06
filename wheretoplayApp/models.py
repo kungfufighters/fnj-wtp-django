@@ -5,8 +5,6 @@ from django.utils import timezone
 import random
 import os
 from cloudinary.models import CloudinaryField
-from django.db import models
-from django.contrib.auth.models import AbstractUser
 
 # Updated User model extending AbstractUser
 
@@ -55,6 +53,7 @@ class Workspace(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = self.generate_unique_code()
+            self.url_link = "http://localhost:3000/voting/" + self.code
         super().save(*args, **kwargs)
 
     def generate_unique_code(self):
