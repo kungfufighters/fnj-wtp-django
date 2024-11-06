@@ -1,5 +1,9 @@
+
 from django.http import HttpResponse
 import qrcode
+
+from collections import defaultdict
+
 from django.contrib.auth import authenticate
 from django.template.context_processors import media
 from django.core.mail import send_mail
@@ -14,6 +18,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import *
 import numpy as np
 import random
+import string
 import os
 
 # Utility function to generate tokens for a user
@@ -86,14 +91,7 @@ class LoginView(APIView):
             # Authentication failed
             return Response({'error': 'Invalid email or password'}, status=status.HTTP_401_UNAUTHORIZED)
 
-
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.views import APIView
-from .models import Workspace, Opportunity, Vote
-from .serializers import OpportunityDisplaySerializer
-
+'''
 class WorkspaceDisplayView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -139,7 +137,7 @@ class WorkspaceDisplayView(APIView):
 
         # Return all relevant workspaces (though this will usually just be one workspace due to `code` filter)
         return Response(workspaces, status=status.HTTP_200_OK)
-
+'''
 
 class WorkspaceByCodeView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -201,7 +199,46 @@ class WorkspaceCreateView(APIView):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        
+class WorkspaceDisplayView(APIView):
+    def get(self, request):
+        user = request.user
+        wss = Workspace.objects.filter(user_id=user.id)
+        workspaces = []
+        for ws in wss:
+            os = Opportunity.objects.filter(workspace=ws.workspace_id)
+            opportunities = []
+            for obj in os:
+                newD = {}
+                newD['name'] = obj.name
+                newD['customer_segment']= obj.customer_segment
+                newD['label'] = obj.status if obj.status != None else "TBD"
 
+                # get the most recent voting session
+                # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
+                # temporary for testing
+                oppid = obj.opportunity_id
+                newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
+                votes = Vote.objects.filter(opportunity=oppid)
+                totalP = 0
+                countP = 0
+                totalC = 0
+                countC = 0
+                for vote in votes:
+                    if vote.criteria_id <= 3:
+                        totalP += vote.vote_score
+                        countP += 1
+                    else:
+                        totalC += vote.vote_score
+                        countC += 1
+                newD['scoreP'] = totalP / countP if countP != 0 else 0
+                newD['scoreC'] = totalC / countC if countC != 0 else 0
+                opportunities.append(newD)
+            serializer = OpportunityDisplaySerializer(opportunities, many=True)
+            workspaces.append((ws.name, ws.code, serializer.data))
+        
+        return Response(workspaces, status=status.HTTP_200_OK)
+    
 class EmailDisplayView(APIView):
     def get(self, request):
         user = request.user
@@ -238,11 +275,16 @@ class ChangePasswordView(APIView):
         user.save()
         return Response({}, status=status.HTTP_200_OK)  
 
-
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        user = request.user
+        code = request.data.get('code')  # Retrieve code from request data
+        
+        request.data['code'] = code  # Ensure code is set in request data
+        request.data['user'] = user.id  # Set the user in request data
+        
         serializer = WorkspaceSerializer(data=request.data)
         if serializer.is_valid():
             workspace = serializer.save(user=request.user)
@@ -279,7 +321,6 @@ def generate_unique_pin():
 
 class OpportunityCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-
     def post(self, request):
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
@@ -370,6 +411,77 @@ class GetID(APIView):
         if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class GetResults(APIView):
+    def get(self, request):
+        user = request.user
+        session = request.query_params.get('code')
+        try:
+            ws = Workspace.objects.filter(code=session)[0]
+            if user.id != ws.user.id:
+                 return Response({'message': "You are not the owner"}, status=status.HTTP_403_FORBIDDEN)
+            os = Opportunity.objects.filter(workspace=ws.workspace_id)
+        except:
+            return Response({'message': f"No workspace with session code {session}"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        
+
+        opportunities = []
+        for obj in os:
+            newD = {}
+            reasons = ['' for i in range(6)]
+            oppid = obj.opportunity_id
+            vs = Vote.objects.filter(opportunity=oppid)
+            cur_votes = [ [0]*5 for i in range(6)]
+            for v in vs:
+                cur_votes[v.criteria_id - 1][v.vote_score - 1]+=1
+                if v.user_vote_explanation != None:
+                    if reasons[v.criteria_id - 1] != "":
+                        reasons[v.criteria_id - 1] += '; '
+                    reasons[v.criteria_id - 1] += 'Vote=' + str(v.vote_score) + ': ' + v.user_vote_explanation
+            newD['name'] = obj.name
+            newD['customer_segment'] = obj.customer_segment
+            newD['description'] = obj.description
+            newD['cur_votes'] = cur_votes
+            for i in range(6):
+                if reasons[i] == '':
+                    reasons[i] = 'No outliers'
+            newD['reasons'] = reasons
+            newD['imgurl'] = obj.image.url if obj.image != None else '../../wtp.png'
+            print(newD)
+            opportunities.append(newD)
+
+        serializer = OpportunityResultsSerializer(data=opportunities, many=True)
+        if serializer.is_valid():
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        print(serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)    
+
+class CreateReason(APIView):
+    def post(self, request):
+        pass    
+
+
+class DeleteUser(APIView):  
+    def post(self, request):
+        try:
+            user = request.user
+            user.delete()
+            return Response({}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': e.message}, status=status.HTTP_400_BAD_REQUEST)
+                
+
+
+    
+class GetID(APIView):
+    def get(self, request):
+        user = request.user
+        dataa = {}
+        dataa['id'] = user.id
+        serializer = IDSerializer(data=dataa)
+        if serializer.is_valid():
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class SubmitVoteView(APIView):
@@ -403,8 +515,8 @@ def mad_outlier_detection(data: list, threshold=2):
     for i in data:
         if i < lower_limit or i > upper_limit:
             outliers.append(i)
-        else:
-            pass
+    if not outliers:
+        outliers.append("No outliers detected")
     return outliers
 
 
@@ -415,12 +527,12 @@ class VoteListView(APIView):
         if queryset.exists():
             serializer = VoteSerializer(queryset, many=True)
             data = serializer.data
+            grouped_scores = defaultdict(list)
             score_list = []
-            for vote in data:
-                score = vote.get('vote_score')
-                score_list.append(score)
-            outliers = mad_outlier_detection(score_list)
-            print(f'Users votes for Criteria 1: {score_list}')
-            print(f'Outliers using MAD: {outliers}')
+            for item in data:
+                grouped_scores[item['criteria_id']].append(item["vote_score"])
+            for criteria_id, vote_score in grouped_scores.items():
+                print(f'Criteria ID: {criteria_id}: {vote_score}, Outliers: {mad_outlier_detection(vote_score)}')
             return Response(data, status=status.HTTP_200_OK)
         return Response({'error': 'No votes found'}, status=status.HTTP_400_BAD_REQUEST)
+    

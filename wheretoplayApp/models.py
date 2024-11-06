@@ -4,6 +4,9 @@ from django.conf import settings
 from django.utils import timezone
 import random
 import os
+from cloudinary.models import CloudinaryField
+from django.db import models
+from django.contrib.auth.models import AbstractUser
 
 # Updated User model extending AbstractUser
 
@@ -33,14 +36,14 @@ class Guest(models.Model):
 
 class UserCategory(models.Model):
     user_category_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     # Owner and Participant already created in table, map with pk
     category_label = models.CharField(max_length=20)
 
     class Meta:
         managed = True
         db_table = 'user_category'
-        
+
 
 class Workspace(models.Model):
     workspace_id = models.AutoField(primary_key=True)
@@ -64,51 +67,16 @@ class Workspace(models.Model):
         managed = True
         db_table = 'workspace'
 
-        
-
-class VotesFor(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
-
-    class Meta:
-        managed = True
-        db_table = 'votes_for'
-
-
-# Deemed unnecessary at FNJ meeting #5
-'''
-class OpportunityCategory(models.Model):
-    opp_category_id = models.AutoField(primary_key=True)
-    # Product or Service already created in table, map with pk
-    label = models.CharField(max_length=100)
-
-    class Meta:
-        managed = True
-        db_table = 'opportunity_category'
-'''
-
-'''
-class OpportunityStatus(models.Model):
-    status_id = models.AutoField(primary_key=True)
-    # Pursue now, keep open, shelve already created in table, map with pk
-    label = models.CharField(max_length=100, unique=True)
-
-    class Meta:
-        managed = True
-        db_table = 'opportunity_status'
-'''
-
 
 class Opportunity(models.Model):
     opportunity_id = models.AutoField(primary_key=True)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, null=True, blank=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="opportunities", null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
     status = models.CharField(max_length=100, null=True, blank=True)
-    name = models.CharField(max_length=100, default="Untitled Opportunity")
+    name = models.CharField(max_length=100)
     customer_segment = models.CharField(max_length=100)
     description = models.TextField()
-    image = models.ImageField(upload_to='images/', null=True, blank=True)
-    created_at = models.DateTimeField(default=timezone.now)
+    image = CloudinaryField('Image', null=True, blank=True, overwrite=True, format='jpg')
 
     def __str__(self):
         return self.name
@@ -116,6 +84,19 @@ class Opportunity(models.Model):
     class Meta:
         managed = True
         db_table = 'opportunity'
+
+
+class Vote(models.Model):
+    vote_id = models.AutoField(primary_key=True)
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE)  # Tied directly to an Opportunity
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    vote_score = models.IntegerField(default=0)
+    criteria_id = models.IntegerField(null=True, blank=True) 
+    user_vote_explanation = models.TextField(null=True, blank=True)
+
+    class Meta:
+        managed = True
+        db_table = 'vote'
 
 
 class VotingStatus(models.Model):
@@ -128,15 +109,9 @@ class VotingStatus(models.Model):
 
 
 class VotingSession(models.Model):
-    vs_id = models.AutoField(primary_key=True)
-    workspace = models.ForeignKey(
-        Workspace,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True
-    )
-    code = models.CharField(max_length=5, unique=True, null=True, blank=True)  # Store 5-digit PIN
-    url_link = models.URLField(max_length=200, null=True, blank=True)
+    session_id = models.AutoField(primary_key=True)
+    code = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name='voting_sessions', null=True, blank=True)
+    voting_status = models.ForeignKey(VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
     start_time = models.DateTimeField(null=True)
     end_time = models.DateTimeField(null=True)
 
@@ -146,44 +121,14 @@ class VotingSession(models.Model):
 
 
 class SessionParticipant(models.Model):
-    """ This one would have to be in Vote """
     participant_id = models.AutoField(primary_key=True)
     voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
-    # Ensure this points to User
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
 
     class Meta:
         managed = True
         db_table = 'session_participant'
 
-
-class VoteCriteria(models.Model):
-    criteria_id = models.AutoField(primary_key=True)
-    # Reason to buy, Market Volume, etc.
-    criteria_label = models.CharField(max_length=100)
-    description = models.TextField(null=True, blank=True)
-    min_score = models.IntegerField(default=1)
-    max_score = models.IntegerField()
-
-    class Meta:
-        managed = True
-        db_table = 'vote_criteria'
-
-
-class Vote(models.Model):
-    vote_id = models.AutoField(primary_key=True)
-    voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
-    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE, null=True, blank=True)
-    criteria = models.ForeignKey(VoteCriteria, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    guest = models.ForeignKey(Guest, on_delete=models.CASCADE, null=True, blank=True)
-    vote_score = models.IntegerField(default=0)
-    user_vote_explanation = models.TextField(null=True, blank=True)
-
-    class Meta:
-        managed = True
-        db_table = 'vote'
 
 '''
 AbstractUser has it
