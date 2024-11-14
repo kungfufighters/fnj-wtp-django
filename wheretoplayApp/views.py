@@ -498,9 +498,10 @@ class GetResults(APIView):
             for v in vs:
                 cur_votes[v.criteria_id - 1][v.vote_score - 1]+=1
                 if v.user_vote_explanation != None:
+                    uid = v.user
                     if reasons[v.criteria_id - 1] != "":
                         reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += 'Vote=' + str(v.vote_score) + ': ' + v.user_vote_explanation
+                    reasons[v.criteria_id - 1] += uid.username + ' voted ' + str(v.vote_score) + ': ' + v.user_vote_explanation
             newD['name'] = obj.name
             newD['customer_segment'] = obj.customer_segment
             newD['description'] = obj.description
