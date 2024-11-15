@@ -3,7 +3,7 @@ from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from django.utils import timezone
 import random
-import os
+import string
 from cloudinary.models import CloudinaryField
 
 # Updated User model extending AbstractUser
@@ -53,12 +53,12 @@ class Workspace(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = self.generate_unique_code()
-            self.url_link = "http://localhost:3000/voting/" + self.code
+            self.url_link = f"http://localhost:3000/voting/{self.code}"
         super().save(*args, **kwargs)
 
     def generate_unique_code(self):
         while True:
-            code = str(random.randint(10000, 99999))
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
             if not Workspace.objects.filter(code=code).exists():
                 return code
 
