@@ -39,13 +39,14 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
                 # Check if the new vote is an outlier
-                is_outlier = self.mad_outlier_detection(current_votes, vote_score)
+                (is_outlier, median) = self.mad_outlier_detection(current_votes, vote_score)
                 if is_outlier:
                     print(f"This is an outlier! User ID: {user_id}, Criteria: {criteria_id}, Vote: {vote_score}")
                     await self.send(text_data=json.dumps({
                         'outlier': True,
                         'criteria_id': criteria_id,
                         'user_id': user_id,
+                        'median': median,
                     }))
                 else:
                     print("Vote is not an outlier.")
@@ -111,7 +112,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print(f"Error in broadcast_protocol: {e}")
 
     @database_sync_to_async
-    def get_votes(self, criteria_id, opportunity_id):
+    def get_votes(self, criteria_id, session_id, opportunity_id):
         try:
             opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
             votes = Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
@@ -149,4 +150,4 @@ class VotingConsumer(AsyncWebsocketConsumer):
 
         # Check if current vote is an outlier
         is_outlier = not (lower_limit <= current_vote <= upper_limit)
-        return is_outlier
+        return (is_outlier, median)

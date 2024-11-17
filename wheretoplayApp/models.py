@@ -129,6 +129,14 @@ class SessionParticipant(models.Model):
         managed = True
         db_table = 'session_participant'
 
+class PasswordReset(models.Model):
+    email = models.EmailField()
+    token = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = True
+        db_table = 'password_reset'
 
 '''
 AbstractUser has it
