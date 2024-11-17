@@ -24,4 +24,6 @@ urlpatterns = [
     path('api/delete_user/', DeleteUser.as_view(), name='delete_user'),
     path('api/submit_vote/', SubmitVoteView.as_view(), name='submit_vote'),
     path('api/send_invite_email/', SendInviteEmailView.as_view(), name='send_invite_email'),
+    path('api/send_reset_email/', ResetPasswordSendView.as_view(), name='send_reset_email'),
+    path('api/reset_password/', ResetPasswordView.as_view(), name='reset_password'),
 ]
