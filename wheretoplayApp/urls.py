@@ -24,4 +24,8 @@ urlpatterns = [
     path('api/delete_user/', DeleteUser.as_view(), name='delete_user'),
     path('api/submit_vote/', SubmitVoteView.as_view(), name='submit_vote'),
     path('api/send_invite_email/', SendInviteEmailView.as_view(), name='send_invite_email'),
+    path('join/<uuid:token>/', JoinWorkspaceView.as_view(), name='join_workspace'),
+    path('api/kick_participant/', KickParticipantView.as_view(),
+         name='kick_participant'),
+    path('api/guests/', GuestJoinSessionView.as_view(), name='guest_join_session'),
 ]
