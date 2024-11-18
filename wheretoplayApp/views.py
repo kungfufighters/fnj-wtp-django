@@ -159,6 +159,7 @@ class WorkspaceByCodeView(APIView):
         return Response(data, status=status.HTTP_200_OK)
     
 class WorkspaceCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
     def post(self, request):
         user = request.user
         # code = request.data.get('code')  # Retrieve code from request data
