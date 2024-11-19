@@ -39,7 +39,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
                 # Check if the new vote is an outlier
-                (is_outlier, median) = self.mad_outlier_detection(current_votes, vote_score)
+                (is_outlier, median) = await self.mad_outlier_detection(current_votes, vote_score, opportunity_id)
                 if is_outlier:
                     print(f"This is an outlier! User ID: {user_id}, Criteria: {criteria_id}, Vote: {vote_score}")
                     await self.send(text_data=json.dumps({
@@ -132,9 +132,16 @@ class VotingConsumer(AsyncWebsocketConsumer):
             return [0, 0, 0, 0, 0]
 
     # Outlier detection function based on Median Absolute Deviation
-    def mad_outlier_detection(self, data, current_vote, threshold=2):
+    @database_sync_to_async
+    def mad_outlier_detection(self, data, current_vote, opportunity_id):
         if not data:
             return False
+        
+        opp = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
+        ws = opp.workspace
+        threshold = ws.outlier_threshold
+
+        print(threshold)
         
         dataa = []
         for i in range(5):
@@ -147,6 +154,8 @@ class VotingConsumer(AsyncWebsocketConsumer):
         mad = np.median(abs_deviation)
         lower_limit = median - (threshold * mad)
         upper_limit = median + (threshold * mad)
+
+        print(lower_limit, upper_limit)
 
         # Check if current vote is an outlier
         is_outlier = not (lower_limit <= current_vote <= upper_limit)

@@ -49,6 +49,7 @@ class Workspace(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
     code = models.CharField(max_length=100, null=True, blank=True)
     url_link = models.CharField(max_length=200, null=True, blank=True)
+    outlier_threshold = models.FloatField(default=2)
 
     def save(self, *args, **kwargs):
         if not self.code:
