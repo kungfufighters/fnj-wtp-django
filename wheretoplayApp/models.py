@@ -6,9 +6,6 @@ import string
 import uuid
 from cloudinary.models import CloudinaryField
 
-# Updated User model extending AbstractUser
-
-
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -114,29 +111,28 @@ class VotingStatus(models.Model):
         managed = True
         db_table = 'voting_status'
 
+# class VotingSession(models.Model):
+#     session_id = models.AutoField(primary_key=True)
+#     workspace = models.ForeignKey(
+#         Workspace, on_delete=models.CASCADE, default=1)
+#     code = models.CharField(max_length=10, unique=True)
+#     voting_status = models.ForeignKey(
+#         VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
+#     start_time = models.DateTimeField(null=True, default=timezone.now)
+#     expiration_time = models.DateTimeField(null=True, blank=True)
 
-class VotingSession(models.Model):
-    session_id = models.AutoField(primary_key=True)
-    workspace = models.ForeignKey(
-        Workspace, on_delete=models.CASCADE, default=1)
-    code = models.CharField(max_length=10, unique=True)
-    voting_status = models.ForeignKey(
-        VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
-    start_time = models.DateTimeField(null=True, default=timezone.now)
-    expiration_time = models.DateTimeField(null=True, blank=True)
+#     def is_expired(self):
+#         """Check if the voting session is expired."""
+#         return self.expiration_time and timezone.now() > self.expiration_time
 
-    def is_expired(self):
-        """Check if the voting session is expired."""
-        return self.expiration_time and timezone.now() > self.expiration_time
-
-    class Meta:
-        managed = True
-        db_table = 'voting_session'
+#     class Meta:
+#         managed = True
+#         db_table = 'voting_session'
 
 
 class SessionParticipant(models.Model):
     participant_id = models.AutoField(primary_key=True)
-    voting_session = models.ForeignKey(VotingSession, on_delete=models.CASCADE)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, null=True, blank=True)
     guest = models.ForeignKey(

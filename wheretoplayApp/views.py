@@ -1,6 +1,5 @@
 
 from .serializers import GuestSerializer
-from .models import Guest, VotingSession, SessionParticipant
 from rest_framework import status
 from django.http import HttpResponse
 from collections import defaultdict
@@ -161,6 +160,7 @@ class WorkspaceByCodeView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
     
+
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -172,37 +172,18 @@ class WorkspaceCreateView(APIView):
         if serializer.is_valid():
             workspace = serializer.save()
 
-            # Generate a unique session pin for the voting session
-            pin_code = generate_unique_pin()
-
-            # Create the voting session associated with the workspace
-            VotingSession.objects.create(
-                workspace=workspace,
-                code=pin_code,
-                start_time=timezone.now(),
-                end_time=None,
-            )
-
-            # Update the workspace with the voting session's pin and URL
-            protocol = 'https' if request.is_secure() else 'http'
-            domain = request.get_host()
-            url_link = f"{protocol}://{domain}/voting/{pin_code}"
-            workspace.url_link = url_link
-            workspace.code = pin_code  # Save the pin code in the workspace
-            workspace.save(update_fields=['url_link', 'code'])
+            # Generate a unique session pin if not already set
+            if not workspace.code:
+                workspace.code = workspace.generate_unique_code()
+                workspace.save(update_fields=['code'])
 
             return Response({
                 'workspace_id': workspace.workspace_id,
                 'name': workspace.name,
                 'code': workspace.code,
                 'url_link': workspace.url_link,
-                'voting_session': {
-                    'pin': pin_code,
-                    'url_link': url_link,
-                }
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 '''
@@ -259,8 +240,6 @@ class WorkspaceDisplayView(APIView):
                 newD['customer_segment']= obj.customer_segment
                 newD['label'] = obj.status if obj.status != None else "TBD"
 
-                # get the most recent voting session
-                # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
                 # temporary for testing
                 oppid = obj.opportunity_id
                 newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
@@ -329,50 +308,6 @@ class ChangePasswordView(APIView):
         user.set_password(newPassword)
         user.save()
         return Response({}, status=status.HTTP_200_OK)  
-
-'''
-class WorkspaceCreateView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        user = request.user
-        code = request.data.get('code')  # Retrieve code from request data
-        
-        request.data['code'] = code  # Ensure code is set in request data
-        request.data['user'] = user.id  # Set the user in request data
-        
-        serializer = WorkspaceSerializer(data=request.data)
-        if serializer.is_valid():
-            workspace = serializer.save(user=request.user)
-            # Retrieve the voting session associated with the workspace
-            try:
-                voting_session = VotingSession.objects.get(workspace=workspace)
-            except VotingSession.DoesNotExist:
-                return Response({'error': 'Voting session not created'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            protocol = 'https' if request.is_secure() else 'http'
-            domain = request.get_host()
-            qr_code_url = f"{protocol}://{domain}/media/qr_codes/{workspace.workspace_id}.png"
-
-            return Response({
-                'workspace_id': workspace.workspace_id,
-                'name': workspace.name,
-                'code': workspace.code,
-                'voting_session': {
-                    'pin': voting_session.code,
-                    'url_link': voting_session.url_link,
-                    'qr_code_url': qr_code_url
-                }
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-'''
-
-def generate_unique_pin():
-    """Generate a unique 5-digit PIN."""
-    while True:
-        pin = f"{random.randint(10000, 99999)}"
-        if not VotingSession.objects.filter(code=pin).exists():
-            return pin
 
 
 class OpportunityCreateView(APIView):
@@ -755,9 +690,9 @@ class GuestJoinSessionView(APIView):
             return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Validate session pin
-            voting_session = VotingSession.objects.get(code=session_pin)
-        except VotingSession.DoesNotExist:
+            # Validate session pin by looking up the Workspace
+            workspace = Workspace.objects.get(code=session_pin)
+        except Workspace.DoesNotExist:
             return Response({"error": "Invalid session pin"}, status=status.HTTP_404_NOT_FOUND)
 
         # Create or retrieve guest
@@ -766,10 +701,9 @@ class GuestJoinSessionView(APIView):
             defaults={'first_name': first_name, 'last_name': last_name}
         )
 
-        # Associate guest with the voting session
-        SessionParticipant.objects.get_or_create(
-            voting_session=voting_session,
-            guest=guest
-        )
+        # Associate guest with the workspace
+        # Assuming there's a ManyToManyField in Workspace for guests
+        # e.g., Workspace.guests = models.ManyToManyField(Guest, related_name='workspaces')
+        workspace.sessionparticipant_set.get_or_create(guest=guest)
 
         return Response({"guest_id": guest.guest_id}, status=status.HTTP_201_CREATED)

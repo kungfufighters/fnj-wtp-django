@@ -1,8 +1,11 @@
 from .models import Guest
-from rest_framework import serializers
+from rest_framework import serializers, status
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from .models import *
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
 
 '''
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -149,53 +152,4 @@ class VoteSerializer(serializers.ModelSerializer):
 class SessionParticipantSerializer(serializers.ModelSerializer):
     class Meta:
         model = SessionParticipant
-        fields = ['participant_id', 'voting_session', 'user', 'guest']
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from .models import Guest, VotingSession, SessionParticipant
-from .serializers import GuestSerializer
-
-class GuestJoinSessionView(APIView):
-    permission_classes = []  # Allow unauthenticated access
-
-    def post(self, request):
-        session_pin = request.data.get('sessionPin')
-        first_name = request.data.get('first_name')
-        last_name = request.data.get('last_name')
-        email = request.data.get('email')
-
-        if not session_pin or not first_name or not email:
-            return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # Find the voting session by session pin
-            voting_session = VotingSession.objects.get(code=session_pin)
-        except VotingSession.DoesNotExist:
-            return Response({"error": "Invalid session pin"}, status=status.HTTP_404_NOT_FOUND)
-
-        # Create or retrieve the guest
-        guest, created = Guest.objects.get_or_create(
-            email=email,
-            defaults={
-                "first_name": first_name,
-                "last_name": last_name,
-            }
-        )
-
-        # Associate guest with the voting session
-        SessionParticipant.objects.get_or_create(
-            voting_session=voting_session,
-            guest=guest
-        )
-
-        return Response({"guest_id": guest.guest_id}, status=status.HTTP_201_CREATED)
-
-        from rest_framework import serializers
-
-
-class GuestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Guest
-        fields = ['guest_id', 'first_name', 'last_name', 'email']
+        fields = ['participant_id', 'workspace', 'user', 'guest']
