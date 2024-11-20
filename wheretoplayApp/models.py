@@ -88,12 +88,12 @@ class Opportunity(models.Model):
 
 class Vote(models.Model):
     vote_id = models.AutoField(primary_key=True)
-    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE)  # Tied directly to an Opportunity
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     vote_score = models.IntegerField(default=0)
-    updated_vote_score = models.IntegerField(null=True, blank=True)
-    criteria_id = models.IntegerField(null=True, blank=True) 
+    criteria_id = models.IntegerField(null=True, blank=True)
     user_vote_explanation = models.TextField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
