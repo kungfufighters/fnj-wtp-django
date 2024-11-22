@@ -350,7 +350,7 @@ class OpportunityCreateView(APIView):
     def post(self, request):
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
-            opportunity = serializer.save(user=request.user)
+            serializer.save(user=request.user)
             return Response({'opportunity': serializer.data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
