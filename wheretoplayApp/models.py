@@ -132,7 +132,7 @@ class VotingStatus(models.Model):
 
 class SessionParticipant(models.Model):
     participant_id = models.AutoField(primary_key=True)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, default=1)  # Specify a default workspace ID
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, null=True, blank=True)
     guest = models.ForeignKey(

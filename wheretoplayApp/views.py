@@ -352,8 +352,7 @@ class SendInviteEmailView(APIView):
 
             # Compose email
             subject = 'You are invited to a voting session'
-            message = f"Please join the voting session using the following link: {
-                invite_link}"
+            message = f"Please join the voting session using the following link: {invite_link}"
             from_email = settings.DEFAULT_FROM_EMAIL
             recipient_list = [recipient_email]
 
