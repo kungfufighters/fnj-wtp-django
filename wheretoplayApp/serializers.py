@@ -102,7 +102,7 @@ class EmailDisplaySerializer(serializers.Serializer):
 class WorkspaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workspace
-        fields = ['workspace_id', 'name', 'user', 'code']
+        fields = ['workspace_id', 'name', 'user', 'code', 'outlier_threshold']
 
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:

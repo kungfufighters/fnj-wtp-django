@@ -1,9 +1,9 @@
-
 from .serializers import GuestSerializer
 from rest_framework import status
 from django.http import HttpResponse
 from collections import defaultdict
 from django.contrib.auth import authenticate
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.template.context_processors import media
 from django.utils import timezone
 from django.core.mail import send_mail
@@ -163,7 +163,7 @@ class WorkspaceByCodeView(APIView):
 
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-
+    
     def post(self, request):
         user = request.user
         request.data['user'] = user.id  # Set the user in request data
@@ -249,11 +249,12 @@ class WorkspaceDisplayView(APIView):
                 totalC = 0
                 countC = 0
                 for vote in votes:
+                    vs = vote.updated_vote_score if vote.updated_vote_score else vote.vote_score
                     if vote.criteria_id <= 3:
-                        totalP += vote.vote_score
+                        totalP += vs
                         countP += 1
                     else:
-                        totalC += vote.vote_score
+                        totalC += vs
                         countC += 1
                 newD['scoreP'] = totalP / countP if countP != 0 else 0
                 newD['scoreC'] = totalC / countC if countC != 0 else 0
@@ -307,7 +308,7 @@ class ChangePasswordView(APIView):
             return Response({'message': 'Unable to authorize'}, status=status.HTTP_401_UNAUTHORIZED)
         user.set_password(newPassword)
         user.save()
-        return Response({}, status=status.HTTP_200_OK)  
+        return Response({'message': 'Password changd successfully'}, status=status.HTTP_200_OK)  
 
 
 class OpportunityCreateView(APIView):
@@ -315,7 +316,7 @@ class OpportunityCreateView(APIView):
     def post(self, request):
         serializer = OpportunitySerializer(data=request.data)
         if serializer.is_valid():
-            opportunity = serializer.save(user=request.user)
+            serializer.save(user=request.user)
             return Response({'opportunity': serializer.data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -324,11 +325,17 @@ class SendInviteEmailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        
         recipient_email = request.data.get('email')
         workspace_id = request.data.get('workspace_id')
 
         if not recipient_email or not workspace_id:
             return Response({'error': 'Email and workspace_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+        print(recipient_email)
+        print(session_pin)
+
+        if not recipient_email or not session_pin:
+            return Response({'error': 'Email and session_pin are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             workspace = Workspace.objects.get(pk=workspace_id)
@@ -357,14 +364,82 @@ class SendInviteEmailView(APIView):
             recipient_list = [recipient_email]
 
             # Send email
-            send_mail(subject, message, from_email, recipient_list)
+            try:
+                send_mail(subject, message, from_email, recipient_list)
+            except: 
+                return Response({'error': 'Could not send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             return Response({'message': 'Invite email sent successfully'}, status=status.HTTP_200_OK)
         except Workspace.DoesNotExist:
             return Response({'error': 'Workspace not found'}, status=status.HTTP_400_BAD_REQUEST)
 
+        except:
+            return Response({'error': 'Voting session not found'}, status=status.HTTP_400_BAD_REQUEST)
+        
+class ResetPasswordSendView(APIView):
+    def post(self, request):
+        recipient_email = request.data.get('email')
+        user = User.objects.filter(email=recipient_email)[0]
 
-# Same as results for now, shoudl change for security later    
+        if user:
+            token_generator = PasswordResetTokenGenerator()
+            token = token_generator.make_token(user)
+
+            # Update the token for existing requests or create the request if none exists
+            pr_record = PasswordReset.objects.filter(email=recipient_email).first()
+            if pr_record:
+                pr_record.token = token
+                pr_record.save()
+            else:
+                reset = PasswordReset(email=recipient_email, token=token)
+                reset.save()
+
+            protocol = 'https' if request.is_secure() else 'http'
+            domain = settings.DOMAIN
+            invite_link = f"{protocol}://{domain}/resetPassword/{token}"
+
+            subject = 'Where To Play Reset Password'
+            message = f'''You can reset your password at the following link : {invite_link}. 
+            If you did not request a password change, please disregard this message knowing that your account is safe.'''
+            from_email = settings.DEFAULT_FROM_EMAIL
+            recipient_list = [recipient_email]
+
+            try:
+                send_mail(subject, message, from_email, recipient_list)
+            except: 
+                return Response({'error': 'Could not send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'message': 'Invite email sent successfully'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Email not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+class ResetPasswordView(APIView):
+    def post(self, request):
+        first_pass = request.data.get('newPassword')
+        second_pass = request.data.get('confirmNewPassword')
+        token = request.data.get('token')
+
+        if first_pass != second_pass:
+            return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        pr_record = PasswordReset.objects.filter(token=token).first()
+
+        if not pr_record:
+            return Response({'error': 'Invalid Token'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = User.objects.filter(email=pr_record.email).first()
+
+        if not user:
+            pr_record.delete()
+            return Response({'error': 'Account does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+    
+        user.set_password(first_pass)
+        user.save()
+        pr_record.delete()
+        return Response({'message': 'Password changed successfully'}, status=status.HTTP_200_OK)
+
+
+
+# Same as results for now, should change for security later    
 class GetVoting(APIView):
     def get(self, request):
         user = request.user
@@ -424,11 +499,13 @@ class GetResults(APIView):
             vs = Vote.objects.filter(opportunity=oppid)
             cur_votes = [ [0]*5 for i in range(6)]
             for v in vs:
-                cur_votes[v.criteria_id - 1][v.vote_score - 1]+=1
+                update_score = v.updated_vote_score if v.updated_vote_score else v.vote_score
+                original_score = v.vote_score
+                cur_votes[v.criteria_id - 1][update_score - 1]+=1
                 if v.user_vote_explanation != None:
                     if reasons[v.criteria_id - 1] != "":
                         reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += 'Vote=' + str(v.vote_score) + ': ' + v.user_vote_explanation
+                    reasons[v.criteria_id - 1] += 'Vote=' + str(original_score) + ': ' + v.user_vote_explanation
             newD['name'] = obj.name
             newD['customer_segment'] = obj.customer_segment
             newD['description'] = obj.description
@@ -477,11 +554,14 @@ class GetResults(APIView):
             vs = Vote.objects.filter(opportunity=oppid)
             cur_votes = [ [0]*5 for i in range(6)]
             for v in vs:
-                cur_votes[v.criteria_id - 1][v.vote_score - 1]+=1
+                update_score = v.updated_vote_score if v.updated_vote_score else v.vote_score
+                original_score = v.vote_score
+                cur_votes[v.criteria_id - 1][update_score - 1]+=1
                 if v.user_vote_explanation != None:
+                    uid = v.user
                     if reasons[v.criteria_id - 1] != "":
                         reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += 'Vote=' + str(v.vote_score) + ': ' + v.user_vote_explanation
+                    reasons[v.criteria_id - 1] += uid.username + ' voted ' + str(original_score) + ': ' + v.user_vote_explanation
             newD['name'] = obj.name
             newD['customer_segment'] = obj.customer_segment
             newD['description'] = obj.description

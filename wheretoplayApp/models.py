@@ -47,6 +47,7 @@ class Workspace(models.Model):
     code = models.CharField(max_length=100, null=True, blank=True)
     url_link = models.CharField(max_length=200, null=True, blank=True)
     guest_cap = models.IntegerField(default=0)
+    outlier_threshold = models.FloatField(default=2)
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -96,6 +97,8 @@ class Vote(models.Model):
         Guest, on_delete=models.CASCADE, null=True, blank=True)
     vote_score = models.IntegerField(default=0)
     criteria_id = models.IntegerField(null=True, blank=True)
+    updated_vote_score = models.IntegerField(null=True, blank=True)
+    criteria_id = models.IntegerField(null=True, blank=True) 
     user_vote_explanation = models.TextField(null=True, blank=True)
 
     class Meta:
@@ -142,6 +145,14 @@ class SessionParticipant(models.Model):
         managed = True
         db_table = 'session_participant'
 
+class PasswordReset(models.Model):
+    email = models.EmailField()
+    token = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = True
+        db_table = 'password_reset'
 
 class Invitation(models.Model):
     invitation_id = models.AutoField(primary_key=True)

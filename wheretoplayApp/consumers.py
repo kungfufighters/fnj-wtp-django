@@ -32,20 +32,21 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 vote_score = votes[0]['vote_score']
                 criteria_id = votes[0]['criteria_id']
                 
-                # Insert the vote
-                await self.insert_vote(session_id, user_id, vote_score, criteria_id, opportunity_id)
+                # Insert or update the vote
+                await self.insert_or_update_vote(session_id, user_id, vote_score, criteria_id, opportunity_id)
                 
                 # Fetch updated votes to check for outliers
                 current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
                 # Check if the new vote is an outlier
-                is_outlier = self.mad_outlier_detection(current_votes, vote_score)
+                (is_outlier, median) = await self.mad_outlier_detection(current_votes, vote_score, opportunity_id)
                 if is_outlier:
                     print(f"This is an outlier! User ID: {user_id}, Criteria: {criteria_id}, Vote: {vote_score}")
                     await self.send(text_data=json.dumps({
                         'outlier': True,
                         'criteria_id': criteria_id,
                         'user_id': user_id,
+                        'median': median,
                     }))
                 else:
                     print("Vote is not an outlier.")
@@ -68,24 +69,36 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print("Error decoding JSON data")
 
     @database_sync_to_async
-    def insert_vote(self, session_id, user_id, score, category, opportunity_id):
+    def insert_or_update_vote(self, session_id, user_id, score, category, opportunity_id):
         try:
-            #workspace = Workspace.objects.get(code=session_id)
-            #opportunity = Opportunity.objects.filter(workspace=workspace).first()
-            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id)[0]
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
 
             if opportunity:
-                Vote.objects.create(
+                # Check if user has already voted on this criteria for this opportunity
+                existing_vote = Vote.objects.filter(
                     opportunity=opportunity,
                     user_id=user_id,
-                    vote_score=score,
                     criteria_id=category
-                )
-                print(f"Vote inserted for user {user_id} in session {session_id}")
+                ).first()
+
+                if existing_vote:
+                    # Update existing vote in `updated_vote_score`
+                    existing_vote.updated_vote_score = score
+                    existing_vote.save()
+                    print(f"Updated vote for user {user_id} in session {session_id}.")
+                else:
+                    # Insert new vote
+                    Vote.objects.create(
+                        opportunity=opportunity,
+                        user_id=user_id,
+                        vote_score=score,
+                        criteria_id=category
+                    )
+                    print(f"Inserted new vote for user {user_id} in session {session_id}")
             else:
                 print(f"No opportunity found for workspace with code {session_id}")
         except Exception as e:
-            print(f"Error inserting vote: {e}")
+            print(f"Error inserting or updating vote: {e}")
 
     async def broadcast_protocol(self, event):
         try:
@@ -94,35 +107,41 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 'result': votes,
                 'criteria_id': event['criteria_id']
             }))
-            print(f"Broadcasted votes for criteria {event['criteria_id']}")
+            #print(f"Broadcasted votes for criteria {event['criteria_id']}")
         except Exception as e:
             print(f"Error in broadcast_protocol: {e}")
 
     @database_sync_to_async
     def get_votes(self, criteria_id, session_id, opportunity_id):
         try:
-            #workspace = Workspace.objects.get(code=session_id)
-            #opportunity = Opportunity.objects.filter(workspace=workspace).first()
-            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id)[0]
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
             votes = Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
-
             vote_counts = [0, 0, 0, 0, 0]
+
             for vote in votes:
-                if 1 <= vote.vote_score <= 5:
-                    vote_counts[vote.vote_score - 1] += 1
-            print(f"Vote counts for criteria {criteria_id} in session {session_id}: {vote_counts}")
+                # Use `updated_vote_score` if present, otherwise use `vote_score`
+                score = vote.updated_vote_score if vote.updated_vote_score else vote.vote_score
+
+                if 1 <= score <= 5:
+                    vote_counts[score - 1] += 1
+            #print(f"Vote counts for criteria {criteria_id} in session {session_id}: {vote_counts}")
             return vote_counts
-        except Workspace.DoesNotExist:
-            print(f"Workspace with code {session_id} does not exist.")
-            return [0, 0, 0, 0, 0]
+        
         except Exception as e:
             print(f"Error retrieving votes: {e}")
             return [0, 0, 0, 0, 0]
 
     # Outlier detection function based on Median Absolute Deviation
-    def mad_outlier_detection(self, data, current_vote, threshold=2):
+    @database_sync_to_async
+    def mad_outlier_detection(self, data, current_vote, opportunity_id):
         if not data:
             return False
+        
+        opp = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
+        ws = opp.workspace
+        threshold = ws.outlier_threshold
+
+        print(threshold)
         
         dataa = []
         for i in range(5):
@@ -136,6 +155,8 @@ class VotingConsumer(AsyncWebsocketConsumer):
         lower_limit = median - (threshold * mad)
         upper_limit = median + (threshold * mad)
 
+        print(lower_limit, upper_limit)
+
         # Check if current vote is an outlier
         is_outlier = not (lower_limit <= current_vote <= upper_limit)
-        return is_outlier
+        return (is_outlier, median)

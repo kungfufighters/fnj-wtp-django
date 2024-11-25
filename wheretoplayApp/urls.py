@@ -29,4 +29,6 @@ urlpatterns = [
     path('api/kick_participant/', KickParticipantView.as_view(),
          name='kick_participant'),
     path('api/guests/', GuestJoinSessionView.as_view(), name='guest_join_session'),
+    path('api/send_reset_email/', ResetPasswordSendView.as_view(), name='send_reset_email'),
+    path('api/reset_password/', ResetPasswordView.as_view(), name='reset_password'),
 ]
