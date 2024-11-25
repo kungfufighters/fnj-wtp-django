@@ -1,7 +1,11 @@
-from rest_framework import serializers
+from .models import Guest
+from rest_framework import serializers, status
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from .models import *
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
 
 '''
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -136,3 +140,16 @@ class OpportunityVotingSerializer(serializers.Serializer):
         child = serializers.CharField()
     )
     imgurl = serializers.CharField()
+    
+
+class VoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vote
+        fields = ['vote_id', 'opportunity', 'user', 'guest',
+                  'vote_score', 'criteria_id', 'user_vote_explanation']
+
+
+class SessionParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionParticipant
+        fields = ['participant_id', 'workspace', 'user', 'guest']

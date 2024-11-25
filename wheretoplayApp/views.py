@@ -1,9 +1,11 @@
+from .serializers import GuestSerializer
+from rest_framework import status
 from django.http import HttpResponse
-# import qrcode
 from collections import defaultdict
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.template.context_processors import media
+from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -16,8 +18,8 @@ from rest_framework.permissions import IsAuthenticated
 from .models import *
 import numpy as np
 import random
-import string
-import os
+import uuid
+from django_ratelimit.decorators import ratelimit
 
 # Utility function to generate tokens for a user
 
@@ -158,19 +160,29 @@ class WorkspaceByCodeView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
     
+
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    
     def post(self, request):
         user = request.user
-        # code = request.data.get('code')  # Retrieve code from request data
-        
-        # request.data['code'] = code  # Ensure code is set in request data
         request.data['user'] = user.id  # Set the user in request data
 
         serializer = WorkspaceSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            workspace = serializer.save()
+
+            # Generate a unique session pin if not already set
+            if not workspace.code:
+                workspace.code = workspace.generate_unique_code()
+                workspace.save(update_fields=['code'])
+
+            return Response({
+                'workspace_id': workspace.workspace_id,
+                'name': workspace.name,
+                'code': workspace.code,
+                'url_link': workspace.url_link,
+            }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -228,8 +240,6 @@ class WorkspaceDisplayView(APIView):
                 newD['customer_segment']= obj.customer_segment
                 newD['label'] = obj.status if obj.status != None else "TBD"
 
-                # get the most recent voting session
-                # mostRecentVotingSession = VotingSession.objects.filter(opportunity=obj.opportunity_id)[0].vs_id
                 # temporary for testing
                 oppid = obj.opportunity_id
                 newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
@@ -300,50 +310,6 @@ class ChangePasswordView(APIView):
         user.save()
         return Response({'message': 'Password changd successfully'}, status=status.HTTP_200_OK)  
 
-'''
-class WorkspaceCreateView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        user = request.user
-        code = request.data.get('code')  # Retrieve code from request data
-        
-        request.data['code'] = code  # Ensure code is set in request data
-        request.data['user'] = user.id  # Set the user in request data
-        
-        serializer = WorkspaceSerializer(data=request.data)
-        if serializer.is_valid():
-            workspace = serializer.save(user=request.user)
-            # Retrieve the voting session associated with the workspace
-            try:
-                voting_session = VotingSession.objects.get(workspace=workspace)
-            except VotingSession.DoesNotExist:
-                return Response({'error': 'Voting session not created'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            protocol = 'https' if request.is_secure() else 'http'
-            domain = request.get_host()
-            qr_code_url = f"{protocol}://{domain}/media/qr_codes/{workspace.workspace_id}.png"
-
-            return Response({
-                'workspace_id': workspace.workspace_id,
-                'name': workspace.name,
-                'code': workspace.code,
-                'voting_session': {
-                    'pin': voting_session.code,
-                    'url_link': voting_session.url_link,
-                    'qr_code_url': qr_code_url
-                }
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-'''
-
-def generate_unique_pin():
-    """Generate a unique 5-digit PIN."""
-    while True:
-        pin = f"{random.randint(10000, 99999)}"
-        if not VotingSession.objects.filter(code=pin).exists():
-            return pin
-
 
 class OpportunityCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -356,13 +322,15 @@ class OpportunityCreateView(APIView):
 
 
 class SendInviteEmailView(APIView):
-    #permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         
         recipient_email = request.data.get('email')
-        session_pin = request.data.get('session_pin')
+        workspace_id = request.data.get('workspace_id')
 
+        if not recipient_email or not workspace_id:
+            return Response({'error': 'Email and workspace_id are required'}, status=status.HTTP_400_BAD_REQUEST)
         print(recipient_email)
         print(session_pin)
 
@@ -370,11 +338,24 @@ class SendInviteEmailView(APIView):
             return Response({'error': 'Email and session_pin are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # voting_session = VotingSession.objects.get(code=session_pin)
+            workspace = Workspace.objects.get(pk=workspace_id)
+            if workspace.user != request.user:
+                return Response({'error': 'You are not the owner of this workspace'}, status=status.HTTP_403_FORBIDDEN)
+
+            # Generate unique token for the invitation
+            token = uuid.uuid4()
+
+            # Create invitation
+            invitation = Invitation.objects.create(
+                workspace=workspace,
+                email=recipient_email,
+                token=token,
+            )
+
+            # Generate invite link with token
             protocol = 'https' if request.is_secure() else 'http'
-            #domain = request.get_host()
-            domain = settings.DOMAIN
-            invite_link = f"{protocol}://{domain}/voting/{session_pin}"
+            domain = request.get_host()
+            invite_link = f"{protocol}://{domain}/join/{token}/"
 
             # Compose email
             subject = 'You are invited to a voting session'
@@ -389,6 +370,9 @@ class SendInviteEmailView(APIView):
                 return Response({'error': 'Could not send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             return Response({'message': 'Invite email sent successfully'}, status=status.HTTP_200_OK)
+        except Workspace.DoesNotExist:
+            return Response({'error': 'Workspace not found'}, status=status.HTTP_400_BAD_REQUEST)
+
         except:
             return Response({'error': 'Voting session not found'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -629,13 +613,20 @@ class SubmitVoteView(APIView):
 
     def post(self, request):
         data = request.data.copy()
-        if request.user.is_authenticated:
-            data['user'] = request.user.id
-        else:
-            guest_id = request.data.get('guest_id')
-            if not guest_id:
-                return Response({'error': 'Guest ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user if request.user.is_authenticated else None
+        guest_id = data.get('guest_id')
+
+        if not user and not guest_id:
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if guest_id:
+            try:
+                guest = Guest.objects.get(pk=guest_id)
+            except Guest.DoesNotExist:
+                return Response({'error': 'Invalid guest ID.'}, status=status.HTTP_400_BAD_REQUEST)
             data['guest'] = guest_id
+        else:
+            data['user'] = user.id
 
         serializer = VoteSerializer(data=data)
         if serializer.is_valid():
@@ -676,3 +667,122 @@ class VoteListView(APIView):
             return Response(data, status=status.HTTP_200_OK)
         return Response({'error': 'No votes found'}, status=status.HTTP_400_BAD_REQUEST)
     
+
+class JoinWorkspaceView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    @ratelimit(key='ip', rate='10/m', block=True)
+    def get(self, request, token):
+        try:
+            invitation = Invitation.objects.get(token=token)
+            workspace = invitation.workspace
+
+            if invitation.accepted_at:
+                return Response({'error': 'This invitation link has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            data = {
+                'workspace_name': workspace.name,
+                'workspace_id': workspace.workspace_id,
+                'invitation_token': str(token),
+            }
+            return Response(data, status=status.HTTP_200_OK)
+        except Invitation.DoesNotExist:
+            return Response({'error': 'Invalid invitation link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @ratelimit(key='ip', rate='10/m', block=True)
+    def post(self, request, token):
+        first_name = request.data.get('first_name')
+        last_name = request.data.get('last_name')
+        email = request.data.get('email')
+
+        if not first_name or not email:
+            return Response({'error': 'First name and email are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            invitation = Invitation.objects.get(token=token)
+            workspace = invitation.workspace
+
+            if invitation.accepted_at:
+                return Response({'error': 'This invitation link has already been used.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check guest cap
+            current_guest_count = SessionParticipant.objects.filter(
+                voting_session=workspace.voting_sessions.last(),
+                guest__isnull=False
+            ).count()
+            if workspace.guest_cap > 0 and current_guest_count >= workspace.guest_cap:
+                return Response({'error': 'The guest limit for this workspace has been reached.'}, status=status.HTTP_403_FORBIDDEN)
+
+            # Create Guest object
+            guest, created = Guest.objects.get_or_create(
+                email=email,
+                defaults={'first_name': first_name, 'last_name': last_name}
+            )
+
+            # Associate guest with invitation
+            invitation.guest = guest
+            invitation.accepted_at = timezone.now()
+            invitation.save()
+
+            # Add guest to session participants
+            session_participant, created = SessionParticipant.objects.get_or_create(
+                voting_session=workspace.voting_sessions.last(),
+                guest=guest
+            )
+
+            return Response({'message': 'Successfully joined the workspace.'}, status=status.HTTP_200_OK)
+        except Invitation.DoesNotExist:
+            return Response({'error': 'Invalid invitation link.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class KickParticipantView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        workspace_id = request.data.get('workspace_id')
+        participant_id = request.data.get('participant_id')
+
+        try:
+            workspace = Workspace.objects.get(pk=workspace_id)
+            if workspace.user != request.user:
+                return Response({'error': 'You are not the owner of this workspace'}, status=status.HTTP_403_FORBIDDEN)
+
+            participant = SessionParticipant.objects.get(pk=participant_id)
+            participant.delete()
+
+            return Response({'message': 'Participant kicked successfully'}, status=status.HTTP_200_OK)
+        except Workspace.DoesNotExist:
+            return Response({'error': 'Workspace not found'}, status=status.HTTP_400_BAD_REQUEST)
+        except SessionParticipant.DoesNotExist:
+            return Response({'error': 'Participant not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+class GuestJoinSessionView(APIView):
+    permission_classes = []  # Allow unauthenticated access
+
+    def post(self, request):
+        session_pin = request.data.get('sessionPin')
+        first_name = request.data.get('first_name')
+        last_name = request.data.get('last_name')
+        email = request.data.get('email')
+
+        if not session_pin or not first_name or not email:
+            return Response({"error": "Missing required fields"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Validate session pin by looking up the Workspace
+            workspace = Workspace.objects.get(code=session_pin)
+        except Workspace.DoesNotExist:
+            return Response({"error": "Invalid session pin"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Create or retrieve guest
+        guest, created = Guest.objects.get_or_create(
+            email=email,
+            defaults={'first_name': first_name, 'last_name': last_name}
+        )
+
+        # Associate guest with the workspace
+        # Assuming there's a ManyToManyField in Workspace for guests
+        # e.g., Workspace.guests = models.ManyToManyField(Guest, related_name='workspaces')
+        workspace.sessionparticipant_set.get_or_create(guest=guest)
+
+        return Response({"guest_id": guest.guest_id}, status=status.HTTP_201_CREATED)
