@@ -117,15 +117,10 @@ WSGI_APPLICATION = "wheretoplay.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+import dj_database_url
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': env('DATABASE_NAME'),
-        'USER': env('DATABASE_USER'),
-        'PASSWORD': env("DATABASE_PASS"),
-        'HOST': env("HOST_NAME"),
-        'PORT': '3306',
-    }
+    'default': dj_database_url.config(default='sqlite://:memory:')
 }
 
 #Covers regular testing and django-coverage
