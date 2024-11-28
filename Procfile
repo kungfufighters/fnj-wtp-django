@@ -1,1 +1,1 @@
-web: daphne <your_application_name>.asgi:application --port $PORT --bind 0.0.0.0 -v2
+web: daphne wheretoplay.asgi:application --port $PORT --bind 0.0.0.0 -v2
