@@ -77,6 +77,7 @@ ROOT_URLCONF = "wheretoplay.urls"
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'https://where2play-b70636d00e54.herokuapp.com'
 ]
 
 CORS_ALLOWED_HEADERS = [
@@ -120,7 +121,10 @@ WSGI_APPLICATION = "wheretoplay.wsgi.application"
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.config(default=env("JAWSDB_URL"))
+    'default': dj_database_url.config(default=env("JAWSDB_URL")),
+    "OPTIONS": {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
+        },
 }
 
 #Covers regular testing and django-coverage
