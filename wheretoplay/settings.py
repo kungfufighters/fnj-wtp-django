@@ -120,7 +120,7 @@ WSGI_APPLICATION = "wheretoplay.wsgi.application"
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.config(default=env("DATABASE_URL"))
+    'default': dj_database_url.config(default=env("JAWSDB_URL"))
 }
 
 #Covers regular testing and django-coverage
