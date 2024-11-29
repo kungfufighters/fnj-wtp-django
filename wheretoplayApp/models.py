@@ -52,7 +52,7 @@ class Workspace(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = self.generate_unique_code()
-            self.url_link = f"http://localhost:3000/voting/{self.code}"
+            self.url_link = f"https://where2play.net/voting/{self.code}"
         super().save(*args, **kwargs)
 
     def generate_unique_code(self):

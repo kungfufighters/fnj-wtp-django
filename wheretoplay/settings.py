@@ -173,6 +173,10 @@ USE_HTTPS = False  # Change to True in production
 PROTOCOL = 'http'  # Use 'https' in production
 DOMAIN = 'localhost:3000'  # Update this to actual domain in production
 
+#USE_HTTPS = True # Change to True in production
+#PROTOCOL = 'https'  # Use 'https' in production
+#DOMAIN = 'where2play.net'  # Update this to actual domain in production
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
