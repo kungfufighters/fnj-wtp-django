@@ -318,12 +318,15 @@ class ChangePasswordView(APIView):
 
 class OpportunityCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+
     def post(self, request):
-        serializer = OpportunitySerializer(data=request.data)
+        serializer = OpportunitySerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            serializer.save(user=request.user)
+            opportunity = serializer.save()
             return Response({'opportunity': serializer.data}, status=status.HTTP_201_CREATED)
+        print("Validation errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class SendInviteEmailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -377,8 +380,7 @@ class SendInviteEmailView(APIView):
 
             # Send email
             subject = 'You are invited to a voting session'
-            message = f"Join the voting session using the following link: {
-                invite_link}\n\n"
+            message = f"Join the voting session using the following link: {invite_link}"
             if expiration_time:
                 message += f"This link will expire on {expiration_time}.\n"
             message += "If you did not expect this invitation, please ignore this email."
@@ -801,3 +803,33 @@ class GuestJoinSessionView(APIView):
         workspace.sessionparticipant_set.get_or_create(guest=guest)
 
         return Response({"guest_id": guest.guest_id}, status=status.HTTP_201_CREATED)
+    
+
+class RefreshSessionCodeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        session_pin = request.data.get('session_pin')
+        if not session_pin:
+            return Response({'error': 'Session pin is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            workspace = Workspace.objects.get(code=session_pin, user=request.user)
+
+            if workspace.refresh_code():
+                protocol = 'https' if request.is_secure() else 'http'
+                domain = request.get_host()
+                new_url_link = f"{protocol}://{domain}/ws/vote/{workspace.code}/"
+
+                return Response({
+                    'message': 'Session code refreshed successfully',
+                    'new_code': workspace.code,
+                    'new_url_link': new_url_link,
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Session code can only be refreshed every 30 minutes'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Workspace.DoesNotExist:
+            return Response({'error': 'Workspace not found'}, status=status.HTTP_404_NOT_FOUND)

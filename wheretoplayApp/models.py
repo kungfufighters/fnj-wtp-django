@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-from django.utils import timezone
+from django.utils.timezone import now
+from datetime import timedelta
 import random
 import string
 import uuid
@@ -48,6 +49,7 @@ class Workspace(models.Model):
     url_link = models.CharField(max_length=200, null=True, blank=True)
     guest_cap = models.IntegerField(default=0)
     outlier_threshold = models.FloatField(default=2)
+    last_refreshed = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -61,6 +63,19 @@ class Workspace(models.Model):
                 string.ascii_uppercase + string.digits, k=6))
             if not Workspace.objects.filter(code=code).exists():
                 return code
+
+    def can_refresh_code(self):
+        if self.last_refreshed:
+            return now() > self.last_refreshed + timedelta(minutes=30)
+        return True  # Allow if no previous refresh
+
+    def refresh_code(self):
+        if self.can_refresh_code():
+            self.code = self.generate_unique_code()
+            self.last_refreshed = now()
+            self.save(update_fields=['code', 'last_refreshed'])
+            return True
+        return False
 
     class Meta:
         managed = True
