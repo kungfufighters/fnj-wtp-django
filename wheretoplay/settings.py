@@ -35,8 +35,11 @@ ALLOWED_HOSTS = ['wheretoplay-6af95d3b28f7.herokuapp.com']
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [env('REDIS_URL'), 'redis://localhost:6379'],
+        "CONFIG": {
+            "hosts":[{
+                "address": env(HEROKU_REDIS_PINK_TLS_URL),  # "REDIS_TLS_URL"
+                "ssl_cert_reqs": None,
+            }]
         },
     },
 }
