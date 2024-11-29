@@ -77,7 +77,8 @@ ROOT_URLCONF = "wheretoplay.urls"
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
-    'https://where2play-b70636d00e54.herokuapp.com'
+    'http://where2play-b70636d00e54.herokuapp.com',
+    'https://where2play-b70636d00e54.herokuapp.com',
 ]
 
 CORS_ALLOWED_HEADERS = [
