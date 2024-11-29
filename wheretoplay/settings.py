@@ -37,7 +37,7 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         "CONFIG": {
             "hosts":[{
-                "address": env(HEROKU_REDIS_PINK_TLS_URL),  # "REDIS_TLS_URL"
+                "address": env('HEROKU_REDIS_PINK_TLS_URL'),  # "REDIS_TLS_URL"
                 "ssl_cert_reqs": None,
             }]
         },
