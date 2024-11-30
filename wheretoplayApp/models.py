@@ -129,25 +129,6 @@ class VotingStatus(models.Model):
         managed = True
         db_table = 'voting_status'
 
-# class VotingSession(models.Model):
-#     session_id = models.AutoField(primary_key=True)
-#     workspace = models.ForeignKey(
-#         Workspace, on_delete=models.CASCADE, default=1)
-#     code = models.CharField(max_length=10, unique=True)
-#     voting_status = models.ForeignKey(
-#         VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
-#     start_time = models.DateTimeField(null=True, default=timezone.now)
-#     expiration_time = models.DateTimeField(null=True, blank=True)
-
-#     def is_expired(self):
-#         """Check if the voting session is expired."""
-#         return self.expiration_time and timezone.now() > self.expiration_time
-
-#     class Meta:
-#         managed = True
-#         db_table = 'voting_session'
-
-
 class SessionParticipant(models.Model):
     participant_id = models.AutoField(primary_key=True)
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, default=1)  # Specify a default workspace ID

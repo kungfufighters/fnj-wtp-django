@@ -688,7 +688,7 @@ class VoteListView(APIView):
 class JoinWorkspaceView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    @ratelimit(key='ip', rate='10/m', block=True)
+    @ratelimit(key='ip', rate='1/m', block=True)
     def get(self, request, token):
         try:
             invitation = Invitation.objects.get(token=token)
@@ -706,7 +706,7 @@ class JoinWorkspaceView(APIView):
         except Invitation.DoesNotExist:
             return Response({'error': 'Invalid invitation link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    @ratelimit(key='ip', rate='10/m', block=True)
+    @ratelimit(key='ip', rate='1/m', block=True)
     def post(self, request, token):
         first_name = request.data.get('first_name')
         last_name = request.data.get('last_name')
