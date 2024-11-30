@@ -166,6 +166,7 @@ class WorkspaceByCodeView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
 
+
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
@@ -336,6 +337,12 @@ class SendInviteEmailView(APIView):
         session_pin = request.data.get('session_pin')
         expiration = request.data.get(
             'expiration', 'no_expiration')  # Default to no expiration
+        workspace_id = request.data.get('workspace_id')
+
+        if not recipient_email or not workspace_id:
+            return Response({'error': 'Email and workspace_id are required'}, status=status.HTTP_400_BAD_REQUEST)
+        print(recipient_email)
+        print(session_pin)
 
         if not recipient_email or not session_pin:
             return Response({'error': 'Email and session_pin are required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -362,6 +369,11 @@ class SendInviteEmailView(APIView):
                                                                  timedelta(days=7))
 
             # Generate token
+            workspace = Workspace.objects.get(pk=workspace_id)
+            if workspace.user != request.user:
+                return Response({'error': 'You are not the owner of this workspace'}, status=status.HTTP_403_FORBIDDEN)
+
+            # Generate unique token for the invitation
             token = uuid.uuid4()
 
             # Create invitation
@@ -374,6 +386,9 @@ class SendInviteEmailView(APIView):
             )
 
             # Generate invite link
+            )
+
+            # Generate invite link with token
             protocol = 'https' if request.is_secure() else 'http'
             domain = request.get_host()
             invite_link = f"{protocol}://{domain}/join/{token}/"
@@ -392,6 +407,13 @@ class SendInviteEmailView(APIView):
 
         except Workspace.DoesNotExist:
             return Response({'error': 'Workspace not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        except Workspace.DoesNotExist:
+            return Response({'error': 'Workspace not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+        except:
+            return Response({'error': 'Voting session not found'}, status=status.HTTP_400_BAD_REQUEST)
+        
 
 class ResetPasswordSendView(APIView):
     def post(self, request):

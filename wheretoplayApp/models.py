@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.timezone import now
 from datetime import timedelta
+from django.utils import timezone
 import random
 import string
 import uuid
@@ -128,6 +129,7 @@ class VotingStatus(models.Model):
     class Meta:
         managed = True
         db_table = 'voting_status'
+
 
 class SessionParticipant(models.Model):
     participant_id = models.AutoField(primary_key=True)
