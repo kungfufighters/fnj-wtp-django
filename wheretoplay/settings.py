@@ -69,6 +69,10 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 ROOT_URLCONF = "wheretoplay.urls"
 
 CORS_ALLOWED_ORIGINS = [
@@ -109,7 +113,6 @@ TEMPLATES = [
 ASGI_APPLICATION = "wheretoplay.asgi.application"
 
 WSGI_APPLICATION = "wheretoplay.wsgi.application"
-
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

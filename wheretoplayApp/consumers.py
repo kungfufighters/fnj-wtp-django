@@ -2,7 +2,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 import json
 import numpy as np
-from wheretoplayApp.models import Vote, VotingSession, Workspace, Opportunity
+from wheretoplayApp.models import Vote, Workspace, Opportunity
 
 class VotingConsumer(AsyncWebsocketConsumer):
     async def connect(self):

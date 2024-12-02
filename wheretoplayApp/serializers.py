@@ -1,7 +1,11 @@
-from rest_framework import serializers
+from .models import Guest
+from rest_framework import serializers, status
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from .models import *
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
 
 '''
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
@@ -100,10 +104,18 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         model = Workspace
         fields = ['workspace_id', 'name', 'user', 'code', 'outlier_threshold']
 
+
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['opportunity_id', 'name', 'customer_segment', 'description', 'image', 'status', 'workspace', 'user']
+        fields = ['opportunity_id', 'name', 'customer_segment', 'description', 'image', 'status', 'workspace']
+        read_only_fields = ['opportunity_id']  # 'user' is implicitly handled
+
+    def create(self, validated_data):
+        # Automatically set the user from the request context
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
 
 class VoteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -136,3 +148,16 @@ class OpportunityVotingSerializer(serializers.Serializer):
         child = serializers.CharField()
     )
     imgurl = serializers.CharField()
+    
+
+class VoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vote
+        fields = ['vote_id', 'opportunity', 'user', 'guest',
+                  'vote_score', 'criteria_id', 'user_vote_explanation']
+
+
+class SessionParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionParticipant
+        fields = ['participant_id', 'workspace', 'user', 'guest']
