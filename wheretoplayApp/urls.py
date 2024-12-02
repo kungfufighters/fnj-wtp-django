@@ -13,7 +13,6 @@ urlpatterns = [
     path('api/query/workspace_by_code/', WorkspaceByCodeView.as_view(), name='workspace_by_code'), 
     path('api/query/oppresults/', GetResults.as_view(), name='opp_results_query'),
     path('api/query/oppvoting/', GetVoting.as_view(), name='opp_voting_query'),
-    path('api/query/change_vote/', CreateReason.as_view(), name='create_reason'),
     path('api/query/id/', GetID.as_view(), name='id_query'),
     path('api/query/email/', EmailDisplayView.as_view(), name='email_query'),
     path('api/add/reason/', AddReasonView.as_view(), name='reason_add'),

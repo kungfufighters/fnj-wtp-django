@@ -246,7 +246,6 @@ class WorkspaceDisplayView(APIView):
                 newD['customer_segment']= obj.customer_segment
                 newD['label'] = obj.status if obj.status != None else "TBD"
 
-                # temporary for testing
                 oppid = obj.opportunity_id
                 newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
                 votes = Vote.objects.filter(opportunity=oppid)
@@ -255,7 +254,10 @@ class WorkspaceDisplayView(APIView):
                 totalC = 0
                 countC = 0
                 for vote in votes:
-                    vs = vote.updated_vote_score if vote.updated_vote_score else vote.vote_score
+                    # ignore overwritten votes
+                    if vote.vote_id != votes.filter(user=vote.user, criteria_id=vote.criteria_id).order_by("-timestamp")[0].vote_id:
+                        continue
+                    vs = vote.vote_score
                     if vote.criteria_id <= 3:
                         totalP += vs
                         countP += 1
@@ -282,7 +284,7 @@ class AddReasonView(APIView):
         criteria_id = request.data.get('criteria_id')
         opportunity_id = request.data.get('opportunity_id')
         user = request.user
-        v = Vote.objects.filter(user=user.id, criteria_id=criteria_id, opportunity=opportunity_id)[0]
+        v = Vote.objects.filter(user=user.id, criteria_id=criteria_id, opportunity=opportunity_id).order_by("-timestamp")[0]
         v.user_vote_explanation = reason
         v.save()
         return Response({}, status=status.HTTP_200_OK)
@@ -535,13 +537,17 @@ class GetResults(APIView):
             vs = Vote.objects.filter(opportunity=oppid)
             cur_votes = [ [0]*5 for i in range(6)]
             for v in vs:
-                update_score = v.updated_vote_score if v.updated_vote_score else v.vote_score
+                # ignore overwritten votes
+                if v.vote_id != vs.filter(user=v.user, criteria_id=v.criteria_id).order_by("-timestamp")[0].vote_id:
+                    continue
+                update_score = v.vote_score
                 original_score = v.vote_score
                 cur_votes[v.criteria_id - 1][update_score - 1]+=1
                 if v.user_vote_explanation != None:
+                    uid = v.user
                     if reasons[v.criteria_id - 1] != "":
                         reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += 'Vote=' + str(original_score) + ': ' + v.user_vote_explanation
+                    reasons[v.criteria_id - 1] += uid.username + ' voted ' + str(v.vote_score) + ': ' + v.user_vote_explanation
             newD['name'] = obj.name
             newD['customer_segment'] = obj.customer_segment
             newD['description'] = obj.description
@@ -557,69 +563,6 @@ class GetResults(APIView):
         if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)             
-                
-    
-class GetID(APIView):
-    def get(self, request):
-        user = request.user
-        dataa = {}
-        dataa['id'] = user.id
-        serializer = IDSerializer(data=dataa)
-        if serializer.is_valid():
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class GetResults(APIView):
-    def get(self, request):
-        user = request.user
-        session = request.query_params.get('code')
-        try:
-            ws = Workspace.objects.filter(code=session)[0]
-            if user.id != ws.user.id:
-                 return Response({'message': "You are not the owner"}, status=status.HTTP_403_FORBIDDEN)
-            os = Opportunity.objects.filter(workspace=ws.workspace_id)
-        except:
-            return Response({'message': f"No workspace with session code {session}"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        
-
-        opportunities = []
-        for obj in os:
-            newD = {}
-            reasons = ['' for i in range(6)]
-            oppid = obj.opportunity_id
-            vs = Vote.objects.filter(opportunity=oppid)
-            cur_votes = [ [0]*5 for i in range(6)]
-            for v in vs:
-                update_score = v.updated_vote_score if v.updated_vote_score else v.vote_score
-                original_score = v.vote_score
-                cur_votes[v.criteria_id - 1][update_score - 1]+=1
-                if v.user_vote_explanation != None:
-                    uid = v.user
-                    if reasons[v.criteria_id - 1] != "":
-                        reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += uid.username + ' voted ' + str(original_score) + ': ' + v.user_vote_explanation
-            newD['name'] = obj.name
-            newD['customer_segment'] = obj.customer_segment
-            newD['description'] = obj.description
-            newD['cur_votes'] = cur_votes
-            for i in range(6):
-                if reasons[i] == '':
-                    reasons[i] = 'No outliers'
-            newD['reasons'] = reasons
-            newD['imgurl'] = obj.image.url if obj.image != None else '../../wtp.png'
-            print(newD)
-            opportunities.append(newD)
-
-        serializer = OpportunityResultsSerializer(data=opportunities, many=True)
-        if serializer.is_valid():
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        print(serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)    
-
-class CreateReason(APIView):
-    def post(self, request):
-        pass    
-
 
 class DeleteUser(APIView):  
     def post(self, request):
