@@ -385,9 +385,6 @@ class SendInviteEmailView(APIView):
                 accepted_at=None,
             )
 
-            # Generate invite link
-            )
-
             # Generate invite link with token
             protocol = 'https' if request.is_secure() else 'http'
             domain = request.get_host()
