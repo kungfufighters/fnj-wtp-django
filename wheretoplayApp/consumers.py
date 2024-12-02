@@ -26,30 +26,34 @@ class VotingConsumer(AsyncWebsocketConsumer):
             session_id = data.get('session_id')
             user_id = data.get('user_id')
 
-            print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, opportunity_id: {opportunity_id}")
-
             if votes and session_id and user_id:
+                print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, opportunity_id: {opportunity_id}")
                 vote_score = votes[0]['vote_score']
                 criteria_id = votes[0]['criteria_id']
                 
-                # Insert or update the vote
-                await self.insert_or_update_vote(session_id, user_id, vote_score, criteria_id, opportunity_id)
+                await self.insert_vote(session_id, user_id, vote_score, criteria_id, opportunity_id)
                 
                 # Fetch updated votes to check for outliers
                 current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
-                # Check if the new vote is an outlier
-                (is_outlier, median) = await self.mad_outlier_detection(current_votes, vote_score, opportunity_id)
-                if is_outlier:
-                    print(f"This is an outlier! User ID: {user_id}, Criteria: {criteria_id}, Vote: {vote_score}")
-                    await self.send(text_data=json.dumps({
-                        'outlier': True,
-                        'criteria_id': criteria_id,
-                        'user_id': user_id,
-                        'median': median,
-                    }))
+                limits = await self.mad_outlier_detection(current_votes, opportunity_id)
+                lower = limits[0]
+                upper = limits[1]
+
+                if limits:
+                    outlier_user_ids = await self.get_outlier_user_ids(criteria_id, opportunity_id, lower, upper)
+                    print(f"Limits set, outliers calculated. Criteria ID: {criteria_id}, Users: {outlier_user_ids}")
+                    await self.channel_layer.group_send(
+                        self.voting_session,
+                        {
+                            'type': 'send_limits',
+                            'criteria_id': criteria_id,
+                            'user_ids': outlier_user_ids,
+                            'lower': lower,
+                            'upper': upper,
+                        })
                 else:
-                    print("Vote is not an outlier.")
+                    print("Limits not set.")
 
                 # Broadcast the vote to other users in the session
                 await self.channel_layer.group_send(
@@ -69,79 +73,88 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print("Error decoding JSON data")
 
     @database_sync_to_async
-    def insert_or_update_vote(self, session_id, user_id, score, category, opportunity_id):
+    def insert_vote(self, session_id, user_id, score, category, opportunity_id):
         try:
             opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
 
             if opportunity:
-                # Check if user has already voted on this criteria for this opportunity
-                existing_vote = Vote.objects.filter(
+                Vote.objects.create(
                     opportunity=opportunity,
                     user_id=user_id,
+                    vote_score=score,
                     criteria_id=category
-                ).first()
-
-                if existing_vote:
-                    # Update existing vote in `updated_vote_score`
-                    existing_vote.updated_vote_score = score
-                    existing_vote.save()
-                    print(f"Updated vote for user {user_id} in session {session_id}.")
-                else:
-                    # Insert new vote
-                    Vote.objects.create(
-                        opportunity=opportunity,
-                        user_id=user_id,
-                        vote_score=score,
-                        criteria_id=category
-                    )
-                    print(f"Inserted new vote for user {user_id} in session {session_id}")
+                )
+                print(f"Inserted new vote for user {user_id} in session {session_id}")
             else:
                 print(f"No opportunity found for workspace with code {session_id}")
         except Exception as e:
             print(f"Error inserting or updating vote: {e}")
 
-    async def broadcast_protocol(self, event):
-        try:
-            votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
-            await self.send(text_data=json.dumps({
-                'result': votes,
-                'criteria_id': event['criteria_id']
-            }))
-            #print(f"Broadcasted votes for criteria {event['criteria_id']}")
-        except Exception as e:
-            print(f"Error in broadcast_protocol: {e}")
-
     @database_sync_to_async
     def get_votes(self, criteria_id, session_id, opportunity_id):
         try:
             opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
-            votes = Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
+            all_votes = (
+                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
+                .order_by("user_id", "-timestamp")  # Order by user_id and most recent timestamp
+            )
+
+            latest_votes = {}
+            for vote in all_votes:
+                if vote.user_id not in latest_votes:  # Only keep the first (latest) vote for each user_id
+                    latest_votes[vote.user_id] = vote.vote_score
+
             vote_counts = [0, 0, 0, 0, 0]
 
-            for vote in votes:
-                # Use `updated_vote_score` if present, otherwise use `vote_score`
-                score = vote.updated_vote_score if vote.updated_vote_score else vote.vote_score
-
-                if 1 <= score <= 5:
+            for score in latest_votes.values():  # Iterate over the vote scores in the dictionary
+                if 1 <= score <= 5:  # Ensure valid vote scores
                     vote_counts[score - 1] += 1
-            #print(f"Vote counts for criteria {criteria_id} in session {session_id}: {vote_counts}")
+
+            print(f"Vote counts for criteria {criteria_id} in session {session_id}: {vote_counts}")
             return vote_counts
         
         except Exception as e:
             print(f"Error retrieving votes: {e}")
             return [0, 0, 0, 0, 0]
-
-    # Outlier detection function based on Median Absolute Deviation
+        
     @database_sync_to_async
-    def mad_outlier_detection(self, data, current_vote, opportunity_id):
+    def get_outlier_user_ids(self, criteria_id, opportunity_id, lower_limit, upper_limit):
+        try:
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
+            if not opportunity:
+                print(f"No opportunity found for ID {opportunity_id}")
+                return []
+
+            # Get all votes ordered by user_id and latest timestamp
+            all_votes = (
+                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
+                .order_by("user_id", "-timestamp")  # Order by user_id and most recent timestamp
+            )
+
+            # Get the latest vote for each user
+            latest_votes = {}
+            for vote in all_votes:
+                if vote.user_id not in latest_votes:  # Only keep the first (latest) vote for each user
+                    latest_votes[vote.user_id] = vote.vote_score
+
+            # Identify outliers
+            outlier_user_ids = [
+                user_id for user_id, score in latest_votes.items() if score < lower_limit or score > upper_limit
+            ]
+            return outlier_user_ids
+        
+        except Exception as e:
+            print(f"Error retrieving outlier user IDs: {e}")
+            return []
+
+    @database_sync_to_async
+    def mad_outlier_detection(self, data, opportunity_id):
         if not data:
             return False
         
         opp = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
         ws = opp.workspace
         threshold = ws.outlier_threshold
-
-        print(threshold)
         
         dataa = []
         for i in range(5):
@@ -155,8 +168,30 @@ class VotingConsumer(AsyncWebsocketConsumer):
         lower_limit = median - (threshold * mad)
         upper_limit = median + (threshold * mad)
 
-        print(lower_limit, upper_limit)
+        return (lower_limit, upper_limit, median)
 
-        # Check if current vote is an outlier
-        is_outlier = not (lower_limit <= current_vote <= upper_limit)
-        return (is_outlier, median)
+
+    async def broadcast_protocol(self, event):
+        try:
+            votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
+            await self.send(text_data=json.dumps({
+                'notification': 'Broadcast results',
+                'result': votes,
+                'criteria_id': event['criteria_id']
+            }))
+            #print(f"Broadcasted votes for criteria {event['criteria_id']}")
+        except Exception as e:
+            print(f"Error in broadcast_protocol: {e}")
+            
+    async def send_limits(self, event):
+        try:
+            await self.send(text_data=json.dumps({
+                'notification': 'Outliers by user ID',
+                'user_ids': event['user_ids'],
+                'criteria_id': event['criteria_id'],
+                'lower': event['lower'],
+                'upper': event['upper'],
+            }))
+            #print(f"Sent current outliers by user ID for criteria {event['criteria_id']}.")
+        except Exception as e:
+            print(f"Error in send_limits: {e}")
