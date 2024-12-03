@@ -479,6 +479,9 @@ class ResetPasswordView(APIView):
 
 # Same as results for now, should change for security later    
 class GetVoting(APIView):
+
+    permission_classes = [permissions.AllowAny]
+    
     def get(self, request):
         user = request.user
         session = request.query_params.get('code')
