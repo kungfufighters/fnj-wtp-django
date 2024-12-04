@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils.timezone import now
+from datetime import timedelta
 from django.utils import timezone
 import random
 import string
@@ -48,6 +50,7 @@ class Workspace(models.Model):
     url_link = models.CharField(max_length=200, null=True, blank=True)
     guest_cap = models.IntegerField(default=0)
     outlier_threshold = models.FloatField(default=2)
+    last_refreshed = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -61,6 +64,19 @@ class Workspace(models.Model):
                 string.ascii_uppercase + string.digits, k=6))
             if not Workspace.objects.filter(code=code).exists():
                 return code
+
+    def can_refresh_code(self):
+        if self.last_refreshed:
+            return now() > self.last_refreshed + timedelta(minutes=30)
+        return True  # Allow if no previous refresh
+
+    def refresh_code(self):
+        if self.can_refresh_code():
+            self.code = self.generate_unique_code()
+            self.last_refreshed = now()
+            self.save(update_fields=['code', 'last_refreshed'])
+            return True
+        return False
 
     class Meta:
         managed = True
@@ -89,17 +105,18 @@ class Opportunity(models.Model):
 
 class Vote(models.Model):
     vote_id = models.AutoField(primary_key=True)
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    vote_score = models.IntegerField(default=0)
+    criteria_id = models.IntegerField(null=True, blank=True)
     opportunity = models.ForeignKey(
         Opportunity, on_delete=models.CASCADE, default=1)
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, null=True, blank=True)
     guest = models.ForeignKey(
         Guest, on_delete=models.CASCADE, null=True, blank=True)
-    vote_score = models.IntegerField(default=0)
-    criteria_id = models.IntegerField(null=True, blank=True)
-    updated_vote_score = models.IntegerField(null=True, blank=True)
-    criteria_id = models.IntegerField(null=True, blank=True) 
     user_vote_explanation = models.TextField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = True
@@ -113,24 +130,6 @@ class VotingStatus(models.Model):
     class Meta:
         managed = True
         db_table = 'voting_status'
-
-# class VotingSession(models.Model):
-#     session_id = models.AutoField(primary_key=True)
-#     workspace = models.ForeignKey(
-#         Workspace, on_delete=models.CASCADE, default=1)
-#     code = models.CharField(max_length=10, unique=True)
-#     voting_status = models.ForeignKey(
-#         VotingStatus, on_delete=models.CASCADE, null=True, blank=True)
-#     start_time = models.DateTimeField(null=True, default=timezone.now)
-#     expiration_time = models.DateTimeField(null=True, blank=True)
-
-#     def is_expired(self):
-#         """Check if the voting session is expired."""
-#         return self.expiration_time and timezone.now() > self.expiration_time
-
-#     class Meta:
-#         managed = True
-#         db_table = 'voting_session'
 
 
 class SessionParticipant(models.Model):

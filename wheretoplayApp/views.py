@@ -1,3 +1,4 @@
+from datetime import timedelta
 from .serializers import GuestSerializer
 from rest_framework import status
 from django.http import HttpResponse
@@ -139,8 +140,9 @@ class WorkspaceDisplayView(APIView):
         return Response(workspaces, status=status.HTTP_200_OK)
 '''
 
+
 class WorkspaceByCodeView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         code = request.query_params.get("code")
@@ -152,14 +154,18 @@ class WorkspaceByCodeView(APIView):
         except Workspace.DoesNotExist:
             return Response({"error": "Workspace not found"}, status=status.HTTP_404_NOT_FOUND)
 
+        # Check if the user is the owner
+        is_owner = ws.user == request.user
+
         # Prepare workspace data
         data = {
             "name": ws.name,
             "url_link": ws.url_link,
+            "is_owner": is_owner
         }
 
         return Response(data, status=status.HTTP_200_OK)
-    
+
 
 class WorkspaceCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -240,7 +246,6 @@ class WorkspaceDisplayView(APIView):
                 newD['customer_segment']= obj.customer_segment
                 newD['label'] = obj.status if obj.status != None else "TBD"
 
-                # temporary for testing
                 oppid = obj.opportunity_id
                 newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
                 votes = Vote.objects.filter(opportunity=oppid)
@@ -249,7 +254,10 @@ class WorkspaceDisplayView(APIView):
                 totalC = 0
                 countC = 0
                 for vote in votes:
-                    vs = vote.updated_vote_score if vote.updated_vote_score else vote.vote_score
+                    # ignore overwritten votes
+                    if vote.vote_id != votes.filter(user=vote.user, criteria_id=vote.criteria_id).order_by("-timestamp")[0].vote_id:
+                        continue
+                    vs = vote.vote_score
                     if vote.criteria_id <= 3:
                         totalP += vs
                         countP += 1
@@ -276,7 +284,7 @@ class AddReasonView(APIView):
         criteria_id = request.data.get('criteria_id')
         opportunity_id = request.data.get('opportunity_id')
         user = request.user
-        v = Vote.objects.filter(user=user.id, criteria_id=criteria_id, opportunity=opportunity_id)[0]
+        v = Vote.objects.filter(user=user.id, criteria_id=criteria_id, opportunity=opportunity_id).order_by("-timestamp")[0]
         v.user_vote_explanation = reason
         v.save()
         return Response({}, status=status.HTTP_200_OK)
@@ -313,11 +321,13 @@ class ChangePasswordView(APIView):
 
 class OpportunityCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+
     def post(self, request):
-        serializer = OpportunitySerializer(data=request.data)
+        serializer = OpportunitySerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            serializer.save(user=request.user)
+            opportunity = serializer.save()
             return Response({'opportunity': serializer.data}, status=status.HTTP_201_CREATED)
+        print("Validation errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -325,8 +335,10 @@ class SendInviteEmailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        
         recipient_email = request.data.get('email')
+        session_pin = request.data.get('session_pin')
+        expiration = request.data.get(
+            'expiration', 'no_expiration')  # Default to no expiration
         workspace_id = request.data.get('workspace_id')
 
         if not recipient_email or not workspace_id:
@@ -338,6 +350,27 @@ class SendInviteEmailView(APIView):
             return Response({'error': 'Email and session_pin are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
+            workspace = Workspace.objects.get(code=session_pin)
+            if workspace.user != request.user:
+                return Response({'error': 'You are not the owner of this workspace'}, status=status.HTTP_403_FORBIDDEN)
+
+            # Calculate expiration time
+            if expiration == 'no_expiration':
+                expiration_time = None
+            else:
+                intervals = {
+                    '30m': timedelta(minutes=30),
+                    '1h': timedelta(hours=1),
+                    '6h': timedelta(hours=6),
+                    '12h': timedelta(hours=12),
+                    '1d': timedelta(days=1),
+                    '7d': timedelta(days=7),
+                }
+                expiration_time = timezone.now() + intervals.get(expiration,
+                                                                 # Default to 7 days
+                                                                 timedelta(days=7))
+
+            # Generate token
             workspace = Workspace.objects.get(pk=workspace_id)
             if workspace.user != request.user:
                 return Response({'error': 'You are not the owner of this workspace'}, status=status.HTTP_403_FORBIDDEN)
@@ -350,6 +383,8 @@ class SendInviteEmailView(APIView):
                 workspace=workspace,
                 email=recipient_email,
                 token=token,
+                sent_at=timezone.now(),
+                accepted_at=None,
             )
 
             # Generate invite link with token
@@ -357,25 +392,28 @@ class SendInviteEmailView(APIView):
             domain = request.get_host()
             invite_link = f"{protocol}://{domain}/join/{token}/"
 
-            # Compose email
-            subject = 'You are invited to a voting session'
-            message = f"Please join the voting session using the following link: {invite_link}"
-            from_email = settings.DEFAULT_FROM_EMAIL
-            recipient_list = [recipient_email]
-
             # Send email
-            try:
-                send_mail(subject, message, from_email, recipient_list)
-            except: 
-                return Response({'error': 'Could not send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            subject = 'You are invited to a voting session'
+            message = f"Join the voting session using the following link: {invite_link}"
+            if expiration_time:
+                message += f"This link will expire on {expiration_time}.\n"
+            message += "If you did not expect this invitation, please ignore this email."
+
+            from_email = settings.DEFAULT_FROM_EMAIL
+            send_mail(subject, message, from_email, [recipient_email])
 
             return Response({'message': 'Invite email sent successfully'}, status=status.HTTP_200_OK)
+
+        except Workspace.DoesNotExist:
+            return Response({'error': 'Workspace not found'}, status=status.HTTP_404_NOT_FOUND)
+
         except Workspace.DoesNotExist:
             return Response({'error': 'Workspace not found'}, status=status.HTTP_400_BAD_REQUEST)
 
         except:
             return Response({'error': 'Voting session not found'}, status=status.HTTP_400_BAD_REQUEST)
         
+
 class ResetPasswordSendView(APIView):
     def post(self, request):
         recipient_email = request.data.get('email')
@@ -441,6 +479,9 @@ class ResetPasswordView(APIView):
 
 # Same as results for now, should change for security later    
 class GetVoting(APIView):
+
+    permission_classes = [permissions.AllowAny]
+    
     def get(self, request):
         user = request.user
         session = request.query_params.get('code')
@@ -499,13 +540,17 @@ class GetResults(APIView):
             vs = Vote.objects.filter(opportunity=oppid)
             cur_votes = [ [0]*5 for i in range(6)]
             for v in vs:
-                update_score = v.updated_vote_score if v.updated_vote_score else v.vote_score
+                # ignore overwritten votes
+                if v.vote_id != vs.filter(user=v.user, criteria_id=v.criteria_id).order_by("-timestamp")[0].vote_id:
+                    continue
+                update_score = v.vote_score
                 original_score = v.vote_score
                 cur_votes[v.criteria_id - 1][update_score - 1]+=1
                 if v.user_vote_explanation != None:
+                    uid = v.user
                     if reasons[v.criteria_id - 1] != "":
                         reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += 'Vote=' + str(original_score) + ': ' + v.user_vote_explanation
+                    reasons[v.criteria_id - 1] += uid.username + ' voted ' + str(v.vote_score) + ': ' + v.user_vote_explanation
             newD['name'] = obj.name
             newD['customer_segment'] = obj.customer_segment
             newD['description'] = obj.description
@@ -521,69 +566,6 @@ class GetResults(APIView):
         if serializer.is_valid():
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)             
-                
-    
-class GetID(APIView):
-    def get(self, request):
-        user = request.user
-        dataa = {}
-        dataa['id'] = user.id
-        serializer = IDSerializer(data=dataa)
-        if serializer.is_valid():
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class GetResults(APIView):
-    def get(self, request):
-        user = request.user
-        session = request.query_params.get('code')
-        try:
-            ws = Workspace.objects.filter(code=session)[0]
-            if user.id != ws.user.id:
-                 return Response({'message': "You are not the owner"}, status=status.HTTP_403_FORBIDDEN)
-            os = Opportunity.objects.filter(workspace=ws.workspace_id)
-        except:
-            return Response({'message': f"No workspace with session code {session}"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        
-
-        opportunities = []
-        for obj in os:
-            newD = {}
-            reasons = ['' for i in range(6)]
-            oppid = obj.opportunity_id
-            vs = Vote.objects.filter(opportunity=oppid)
-            cur_votes = [ [0]*5 for i in range(6)]
-            for v in vs:
-                update_score = v.updated_vote_score if v.updated_vote_score else v.vote_score
-                original_score = v.vote_score
-                cur_votes[v.criteria_id - 1][update_score - 1]+=1
-                if v.user_vote_explanation != None:
-                    uid = v.user
-                    if reasons[v.criteria_id - 1] != "":
-                        reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += uid.username + ' voted ' + str(original_score) + ': ' + v.user_vote_explanation
-            newD['name'] = obj.name
-            newD['customer_segment'] = obj.customer_segment
-            newD['description'] = obj.description
-            newD['cur_votes'] = cur_votes
-            for i in range(6):
-                if reasons[i] == '':
-                    reasons[i] = 'No outliers'
-            newD['reasons'] = reasons
-            newD['imgurl'] = obj.image.url if obj.image != None else '../../wtp.png'
-            print(newD)
-            opportunities.append(newD)
-
-        serializer = OpportunityResultsSerializer(data=opportunities, many=True)
-        if serializer.is_valid():
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        print(serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)    
-
-class CreateReason(APIView):
-    def post(self, request):
-        pass    
-
 
 class DeleteUser(APIView):  
     def post(self, request):
@@ -671,7 +653,7 @@ class VoteListView(APIView):
 class JoinWorkspaceView(APIView):
     permission_classes = [permissions.AllowAny]
 
-    @ratelimit(key='ip', rate='10/m', block=True)
+    @ratelimit(key='ip', rate='1/m', block=True)
     def get(self, request, token):
         try:
             invitation = Invitation.objects.get(token=token)
@@ -689,7 +671,7 @@ class JoinWorkspaceView(APIView):
         except Invitation.DoesNotExist:
             return Response({'error': 'Invalid invitation link.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    @ratelimit(key='ip', rate='10/m', block=True)
+    @ratelimit(key='ip', rate='1/m', block=True)
     def post(self, request, token):
         first_name = request.data.get('first_name')
         last_name = request.data.get('last_name')
@@ -786,3 +768,33 @@ class GuestJoinSessionView(APIView):
         workspace.sessionparticipant_set.get_or_create(guest=guest)
 
         return Response({"guest_id": guest.guest_id}, status=status.HTTP_201_CREATED)
+    
+
+class RefreshSessionCodeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        session_pin = request.data.get('session_pin')
+        if not session_pin:
+            return Response({'error': 'Session pin is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            workspace = Workspace.objects.get(code=session_pin, user=request.user)
+
+            if workspace.refresh_code():
+                protocol = 'https' if request.is_secure() else 'http'
+                domain = request.get_host()
+                new_url_link = f"{protocol}://{domain}/ws/vote/{workspace.code}/"
+
+                return Response({
+                    'message': 'Session code refreshed successfully',
+                    'new_code': workspace.code,
+                    'new_url_link': new_url_link,
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Session code can only be refreshed every 30 minutes'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Workspace.DoesNotExist:
+            return Response({'error': 'Workspace not found'}, status=status.HTTP_404_NOT_FOUND)

@@ -30,28 +30,25 @@ class DynamicFieldsModelSerializer(serializers.ModelSerializer):
 '''
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True, required=True, validators=[validate_password])
+    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True, required=True)
 
     class Meta:
-        model = User  # Assuming you're using Django's built-in User model
-        fields = ('username', 'email', 'password', 'password2')
+        model = User
+        fields = ('username', 'email', 'password', 'password2', 'first_name', 'last_name')
 
-    # Validate that the passwords match
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError(
-                {"password": "Password fields didn't match."})
+            raise serializers.ValidationError({"password": "Password fields didn't match."})
         return attrs
 
-    # Create the user
     def create(self, validated_data):
         user = User.objects.create(
             username=validated_data['username'],
-            email=validated_data['email']
+            email=validated_data['email'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', '')
         )
-        # Set the user's password securely
         user.set_password(validated_data['password'])
         user.save()
         return user
@@ -104,10 +101,18 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         model = Workspace
         fields = ['workspace_id', 'name', 'user', 'code', 'outlier_threshold']
 
+
 class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
-        fields = ['opportunity_id', 'name', 'customer_segment', 'description', 'image', 'status', 'workspace', 'user']
+        fields = ['opportunity_id', 'name', 'customer_segment', 'description', 'image', 'status', 'workspace']
+        read_only_fields = ['opportunity_id']  # 'user' is implicitly handled
+
+    def create(self, validated_data):
+        # Automatically set the user from the request context
+        validated_data['user'] = self.context['request'].user
+        return super().create(validated_data)
+
 
 class VoteSerializer(serializers.ModelSerializer):
     class Meta:
