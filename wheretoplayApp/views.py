@@ -568,8 +568,13 @@ class GetResults(APIView):
                     reasons[v.criteria_id - 1] += name_label + ' voted ' + str(v.vote_score) + ': ' + v.user_vote_explanation
 
                 # ignore overwritten votes
-                if v.vote_id != vs.filter(user=v.user, criteria_id=v.criteria_id).order_by("-timestamp")[0].vote_id:
-                    continue
+                if v.user is not None: 
+                    if v.vote_id != vs.filter(user=v.user, criteria_id=v.criteria_id).order_by("-timestamp")[0].vote_id:
+                        continue
+                else:
+                    if v.vote_id != vs.filter(guest=v.guest, criteria_id=v.criteria_id).order_by("-timestamp")[0].vote_id:
+                        continue
+
                 update_score = v.vote_score
                 original_score = v.vote_score
                 cur_votes[v.criteria_id - 1][update_score - 1]+=1
