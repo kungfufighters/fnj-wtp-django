@@ -812,7 +812,7 @@ class RefreshSessionCodeView(APIView):
             if workspace.refresh_code():
                 protocol = 'https' if request.is_secure() else 'http'
                 domain = request.get_host()
-                new_url_link = f"{protocol}://{domain}/ws/vote/{workspace.code}/"
+                new_url_link = f"https://www.where2play.net/voting/{workspace.code}"
 
                 return Response({
                     'message': 'Session code refreshed successfully',
