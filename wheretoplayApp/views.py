@@ -161,7 +161,8 @@ class WorkspaceByCodeView(APIView):
         data = {
             "name": ws.name,
             "url_link": ws.url_link,
-            "is_owner": is_owner
+            "is_owner": is_owner,
+            "workspace_id": ws.workspace_id,
         }
 
         return Response(data, status=status.HTTP_200_OK)
