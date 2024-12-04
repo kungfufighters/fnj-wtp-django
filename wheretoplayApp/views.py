@@ -397,9 +397,9 @@ class SendInviteEmailView(APIView):
             )
 
             # Generate invite link with token
-            protocol = 'https' if request.is_secure() else 'http'
-            domain = request.get_host()
-            invite_link = f"{protocol}://{domain}/join/{token}/"
+            #protocol = 'https' if request.is_secure() else 'http'
+            #domain = request.get_host()
+            invite_link = f"https://www.where2play.net/join/{token}/"
 
             # Send email
             subject = 'You are invited to a voting session'
@@ -443,7 +443,7 @@ class ResetPasswordSendView(APIView):
 
             protocol = 'https' if request.is_secure() else 'http'
             domain = settings.DOMAIN
-            invite_link = f"{protocol}://{domain}/resetPassword/{token}"
+            invite_link = f"https://www.where2play.net/resetPassword/{token}"
 
             subject = 'Where To Play Reset Password'
             message = f'''You can reset your password at the following link : {invite_link}. 
