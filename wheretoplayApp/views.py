@@ -162,7 +162,7 @@ class WorkspaceByCodeView(APIView):
             "name": ws.name,
             "url_link": ws.url_link,
             "is_owner": is_owner,
-            "workspace_id": ws.workspace_id,
+            "id": ws.workspace_id,
         }
 
         return Response(data, status=status.HTTP_200_OK)
@@ -386,7 +386,7 @@ class SendInviteEmailView(APIView):
                 return Response({'error': 'You are not the owner of this workspace'}, status=status.HTTP_403_FORBIDDEN)
 
             # Generate unique token for the invitation
-            # token = uuid.uuid4() 
+            token = uuid.uuid4()
 
             # Create invitation
             invitation = Invitation.objects.create(
@@ -398,11 +398,9 @@ class SendInviteEmailView(APIView):
             )
 
             # Generate invite link with token
-            #protocol = 'https' if request.is_secure() else 'http'
-            #domain = request.get_host()
-            #invite_link = f"https://www.where2play.net/join/{token}/"
-            # We can take them directly to voting they get redirected to guestjoin if they are a guest anyway
-            invite_link = f"https://www.where2play.net/voting/{session_pin}/"
+            protocol = 'https' if request.is_secure() else 'http'
+            domain = request.get_host()
+            invite_link = f"{protocol}://{domain}/join/{token}/"
 
             # Send email
             subject = 'You are invited to a voting session'
