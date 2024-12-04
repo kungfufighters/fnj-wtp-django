@@ -82,6 +82,8 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://where2play-b70636d00e54.herokuapp.com',
     'https://where2play-b70636d00e54.herokuapp.com',
+    'http://www.where2play.net',
+    'https://www.where2play.net',
 ]
 
 CORS_ALLOWED_HEADERS = [
