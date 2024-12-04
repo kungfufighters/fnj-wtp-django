@@ -32,6 +32,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['wheretoplay-6af95d3b28f7.herokuapp.com']
 
+'''
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -40,6 +41,16 @@ CHANNEL_LAYERS = {
                 "address": env('HEROKU_REDIS_PINK_TLS_URL'),  # "REDIS_TLS_URL"
                 "ssl_cert_reqs": None,
             }]
+        },
+    },
+}
+'''
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
         },
     },
 }
@@ -165,23 +176,27 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_HOST = 'smtpout.secureserver.net'
+EMAIL_PORT = 465
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = True
 EMAIL_HOST_USER = env('EMAIL_USER')
 EMAIL_HOST_PASSWORD = env('EMAIL_PASSWORD')
-DEFAULT_FROM_EMAIL = 'Where-to-Play <fnj.wheretoplay@gmail.com>'
+DEFAULT_FROM_EMAIL = 'Where-to-Play <notifications@where2play.net>'
 
 
 AUTH_USER_MODEL = 'wheretoplayApp.User'
+
 
 USE_HTTPS = False  # Change to True in production
 PROTOCOL = 'http'  # Use 'https' in production
 DOMAIN = 'localhost:3000'  # Update this to actual domain in production
 
-#USE_HTTPS = True # Change to True in production
-#PROTOCOL = 'https'  # Use 'https' in production
-#DOMAIN = 'where2play.net'  # Update this to actual domain in production
+'''
+USE_HTTPS = True # Change to True in production
+PROTOCOL = 'https'  # Use 'https' in production
+DOMAIN = 'where2play.net'  # Update this to actual domain in production
+'''
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

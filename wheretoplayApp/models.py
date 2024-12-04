@@ -116,7 +116,7 @@ class Vote(models.Model):
     guest = models.ForeignKey(
         Guest, on_delete=models.CASCADE, null=True, blank=True)
     user_vote_explanation = models.TextField(null=True, blank=True)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(default=timezone.now)
 
     class Meta:
         managed = True

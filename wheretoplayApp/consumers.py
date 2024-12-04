@@ -25,13 +25,14 @@ class VotingConsumer(AsyncWebsocketConsumer):
             opportunity_id = data.get('opportunity_id')
             session_id = data.get('session_id')
             user_id = data.get('user_id')
+            guest_id = data.get('guest_id')
 
-            if votes and session_id and user_id:
-                print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, opportunity_id: {opportunity_id}")
+            if votes and session_id and (user_id or guest_id):
+                print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, guest_id: {guest_id}, opportunity_id: {opportunity_id}")
                 vote_score = votes[0]['vote_score']
                 criteria_id = votes[0]['criteria_id']
                 
-                await self.insert_vote(session_id, user_id, vote_score, criteria_id, opportunity_id)
+                await self.insert_vote(session_id, user_id, guest_id, vote_score, criteria_id, opportunity_id)
                 
                 # Fetch updated votes to check for outliers
                 current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
@@ -41,14 +42,19 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 upper = limits[1]
 
                 if limits:
-                    outlier_user_ids = await self.get_outlier_user_ids(criteria_id, opportunity_id, lower, upper)
+                    outlier_ids = await self.get_outlier_user_ids(criteria_id, opportunity_id, lower, upper)
+                    outlier_user_ids = outlier_ids[0]
+                    outlier_guest_ids = outlier_ids[1]
                     print(f"Limits set, outliers calculated. Criteria ID: {criteria_id}, Users: {outlier_user_ids}")
                     await self.channel_layer.group_send(
                         self.voting_session,
                         {
                             'type': 'send_limits',
                             'criteria_id': criteria_id,
+                            'user_id': user_id,
+                            'guest_id': guest_id,
                             'user_ids': outlier_user_ids,
+                            'guest_ids': outlier_guest_ids,
                             'lower': lower,
                             'upper': upper,
                         })
@@ -64,6 +70,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
                         'vote_score': vote_score,
                         'session_id': session_id,
                         'user_id': user_id,
+                        'guest_id': guest_id,
                         'opportunity_id': opportunity_id,
                     }
                 )
@@ -73,17 +80,26 @@ class VotingConsumer(AsyncWebsocketConsumer):
             print("Error decoding JSON data")
 
     @database_sync_to_async
-    def insert_vote(self, session_id, user_id, score, category, opportunity_id):
+    def insert_vote(self, session_id, user_id, guest_id, score, category, opportunity_id):
         try:
             opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
 
             if opportunity:
-                Vote.objects.create(
-                    opportunity=opportunity,
-                    user_id=user_id,
-                    vote_score=score,
-                    criteria_id=category
-                )
+                # Create a user vote if the voter is a user and a guest vote if the voter is a guest
+                if user_id != None: 
+                    Vote.objects.create(
+                        opportunity=opportunity,
+                        user_id=user_id,
+                        vote_score=score,
+                        criteria_id=category
+                    )
+                else:
+                    Vote.objects.create(
+                        opportunity=opportunity,
+                        guest_id=guest_id,
+                        vote_score=score,
+                        criteria_id=category
+                    )
                 print(f"Inserted new vote for user {user_id} in session {session_id}")
             else:
                 print(f"No opportunity found for workspace with code {session_id}")
@@ -100,13 +116,21 @@ class VotingConsumer(AsyncWebsocketConsumer):
             )
 
             latest_votes = {}
+            latest_guest_votes = {}
             for vote in all_votes:
-                if vote.user_id not in latest_votes:  # Only keep the first (latest) vote for each user_id
+                if vote.user_id is not None and vote.user_id not in latest_votes:  # Only keep the first (latest) vote for each user_id
                     latest_votes[vote.user_id] = vote.vote_score
+                if vote.user_id is None and vote.guest_id not in latest_guest_votes:
+                    latest_guest_votes[vote.guest_id] = vote.vote_score
+
 
             vote_counts = [0, 0, 0, 0, 0]
 
             for score in latest_votes.values():  # Iterate over the vote scores in the dictionary
+                if 1 <= score <= 5:  # Ensure valid vote scores
+                    vote_counts[score - 1] += 1
+
+            for score in latest_guest_votes.values():  # Iterate over the vote scores in the dictionary
                 if 1 <= score <= 5:  # Ensure valid vote scores
                     vote_counts[score - 1] += 1
 
@@ -133,15 +157,24 @@ class VotingConsumer(AsyncWebsocketConsumer):
 
             # Get the latest vote for each user
             latest_votes = {}
+            latest_guest_votes = {}
             for vote in all_votes:
-                if vote.user_id not in latest_votes:  # Only keep the first (latest) vote for each user
+                if vote.user_id is not None and vote.user_id not in latest_votes:  # Only keep the first (latest) vote for each user
                     latest_votes[vote.user_id] = vote.vote_score
+                if vote.user_id is None and vote.guest_id not in latest_guest_votes:
+                    latest_guest_votes[vote.guest_id] = vote.vote_score
+
 
             # Identify outliers
             outlier_user_ids = [
                 user_id for user_id, score in latest_votes.items() if score < lower_limit or score > upper_limit
             ]
-            return outlier_user_ids
+
+            outlier_guest_ids = [
+                guest_id for guest_id, score in latest_guest_votes.items() if score < lower_limit or score > upper_limit
+            ]
+
+            return (outlier_user_ids, outlier_guest_ids)
         
         except Exception as e:
             print(f"Error retrieving outlier user IDs: {e}")
@@ -187,7 +220,10 @@ class VotingConsumer(AsyncWebsocketConsumer):
         try:
             await self.send(text_data=json.dumps({
                 'notification': 'Outliers by user ID',
+                'user_id': event['user_id'],
                 'user_ids': event['user_ids'],
+                'guest_id': event['guest_id'],
+                'guest_ids': event['guest_ids'],
                 'criteria_id': event['criteria_id'],
                 'lower': event['lower'],
                 'upper': event['upper'],

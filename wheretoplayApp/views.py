@@ -284,7 +284,11 @@ class AddReasonView(APIView):
         criteria_id = request.data.get('criteria_id')
         opportunity_id = request.data.get('opportunity_id')
         user = request.user
-        v = Vote.objects.filter(user=user.id, criteria_id=criteria_id, opportunity=opportunity_id).order_by("-timestamp")[0]
+        if user:
+            v = Vote.objects.filter(user=user.id, criteria_id=criteria_id, opportunity=opportunity_id).order_by("-timestamp")[0]
+        else: 
+            gid = request.data.get('user_id')
+            v = Vote.objects.filter(user=gid, criteria_id=criteria_id, opportunity=opportunity_id).order_by("-timestamp")[0]
         v.user_vote_explanation = reason
         v.save()
         return Response({}, status=status.HTTP_200_OK)
@@ -444,7 +448,8 @@ class ResetPasswordSendView(APIView):
 
             try:
                 send_mail(subject, message, from_email, recipient_list)
-            except: 
+            except Exception as e: 
+                print(e)
                 return Response({'error': 'Could not send email'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return Response({'message': 'Invite email sent successfully'}, status=status.HTTP_200_OK)
         else:
@@ -494,13 +499,18 @@ class GetVoting(APIView):
             reasons = ['' for i in range(6)]
             oppid = obj.opportunity_id
             vs = Vote.objects.filter(opportunity=oppid)
-            cur_votes = [ [0]*5 for i in range(6)]
             for v in vs:
-                cur_votes[v.criteria_id - 1][v.vote_score - 1]+=1
+                uid = v.user
+                name_label = ""
+                if uid is None:
+                    gid = v.guest
+                    name_label = gid.first_name
+                else: 
+                    name_label = uid.first_name
                 if v.user_vote_explanation != None:
                     if reasons[v.criteria_id - 1] != "":
                         reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += 'Vote=' + str(v.vote_score) + ': ' + v.user_vote_explanation
+                    reasons[v.criteria_id - 1] += name_label + ' voted ' + str(v.vote_score) + ': ' + v.user_vote_explanation
             newD['name'] = obj.name
             newD['customer_segment'] = obj.customer_segment
             newD['description'] = obj.description
@@ -540,17 +550,25 @@ class GetResults(APIView):
             vs = Vote.objects.filter(opportunity=oppid)
             cur_votes = [ [0]*5 for i in range(6)]
             for v in vs:
+                if v.user_vote_explanation != None:
+                    uid = v.user
+                    name_label = ""
+                    if uid is None:
+                        gid = v.guest
+                        name_label = gid.first_name
+                    else: 
+                        name_label = uid.first_name
+                    if reasons[v.criteria_id - 1] != "":
+                        reasons[v.criteria_id - 1] += '; '
+                    reasons[v.criteria_id - 1] += name_label + ' voted ' + str(v.vote_score) + ': ' + v.user_vote_explanation
+
                 # ignore overwritten votes
                 if v.vote_id != vs.filter(user=v.user, criteria_id=v.criteria_id).order_by("-timestamp")[0].vote_id:
                     continue
                 update_score = v.vote_score
                 original_score = v.vote_score
                 cur_votes[v.criteria_id - 1][update_score - 1]+=1
-                if v.user_vote_explanation != None:
-                    uid = v.user
-                    if reasons[v.criteria_id - 1] != "":
-                        reasons[v.criteria_id - 1] += '; '
-                    reasons[v.criteria_id - 1] += uid.username + ' voted ' + str(v.vote_score) + ': ' + v.user_vote_explanation
+              
             newD['name'] = obj.name
             newD['customer_segment'] = obj.customer_segment
             newD['description'] = obj.description
