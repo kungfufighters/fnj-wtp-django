@@ -255,8 +255,13 @@ class WorkspaceDisplayView(APIView):
                 countC = 0
                 for vote in votes:
                     # ignore overwritten votes
-                    if vote.vote_id != votes.filter(user=vote.user, criteria_id=vote.criteria_id).order_by("-timestamp")[0].vote_id:
-                        continue
+                    if vote.user is not None: 
+                        if vote.vote_id != votes.filter(user=vote.user, criteria_id=vote.criteria_id).order_by("-timestamp")[0].vote_id:
+                            continue
+                    else:
+                        if vote.vote_id != votes.filter(guest=vote.guest, criteria_id=vote.criteria_id).order_by("-timestamp")[0].vote_id:
+                            continue
+
                     vs = vote.vote_score
                     if vote.criteria_id <= 3:
                         totalP += vs
