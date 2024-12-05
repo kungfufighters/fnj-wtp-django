@@ -26,6 +26,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
             session_id = data.get('session_id')
             user_id = data.get('user_id')
             guest_id = data.get('guest_id')
+            curVotes = data.get('curVotes')
 
             if votes and session_id and (user_id or guest_id):
                 print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, guest_id: {guest_id}, opportunity_id: {opportunity_id}")
@@ -35,9 +36,9 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 await self.insert_vote(session_id, user_id, guest_id, vote_score, criteria_id, opportunity_id)
                 
                 # Fetch updated votes to check for outliers
-                current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
+                # current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
-                limits = await self.mad_outlier_detection(current_votes, opportunity_id)
+                limits = await self.mad_outlier_detection(curVotes, opportunity_id)
                 lower = limits[0]
                 upper = limits[1]
 
@@ -72,6 +73,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
                         'user_id': user_id,
                         'guest_id': guest_id,
                         'opportunity_id': opportunity_id,
+                        'curVotes': curVotes,
                     }
                 )
             else:
@@ -82,19 +84,20 @@ class VotingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def insert_vote(self, session_id, user_id, guest_id, score, category, opportunity_id):
         try:
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
 
-            if opportunity_id is not None:
+            if opportunity:
                 # Create a user vote if the voter is a user and a guest vote if the voter is a guest
                 if user_id != None: 
                     Vote.objects.create(
-                        opportunity=opportunity_id,
+                        opportunity=opportunity,
                         user_id=user_id,
                         vote_score=score,
                         criteria_id=category
                     )
                 else:
                     Vote.objects.create(
-                        opportunity=opportunity_id,
+                        opportunity=opportunity,
                         guest_id=guest_id,
                         vote_score=score,
                         criteria_id=category
@@ -108,8 +111,9 @@ class VotingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_votes(self, criteria_id, session_id, opportunity_id):
         try:
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
             all_votes = (
-                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity_id)
+                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
                 .order_by("user_id", "-timestamp")  # Order by user_id and most recent timestamp
             )
 
@@ -142,9 +146,14 @@ class VotingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_outlier_user_ids(self, criteria_id, opportunity_id, lower_limit, upper_limit):
         try:
+            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
+            if not opportunity:
+                print(f"No opportunity found for ID {opportunity_id}")
+                return []
+
             # Get all votes ordered by user_id and latest timestamp
             all_votes = (
-                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity_id)
+                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
                 .order_by("user_id", "-timestamp")  # Order by user_id and most recent timestamp
             )
 
@@ -199,10 +208,10 @@ class VotingConsumer(AsyncWebsocketConsumer):
 
     async def broadcast_protocol(self, event):
         try:
-            votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
+            # votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
             await self.send(text_data=json.dumps({
                 'notification': 'Broadcast results',
-                'result': votes,
+                'result': event['curVotes'],
                 'criteria_id': event['criteria_id']
             }))
             #print(f"Broadcasted votes for criteria {event['criteria_id']}")
