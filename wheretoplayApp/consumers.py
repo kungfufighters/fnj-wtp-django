@@ -82,20 +82,19 @@ class VotingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def insert_vote(self, session_id, user_id, guest_id, score, category, opportunity_id):
         try:
-            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
 
-            if opportunity:
+            if opportunity_id is not None:
                 # Create a user vote if the voter is a user and a guest vote if the voter is a guest
                 if user_id != None: 
                     Vote.objects.create(
-                        opportunity=opportunity,
+                        opportunity=opportunity_id,
                         user_id=user_id,
                         vote_score=score,
                         criteria_id=category
                     )
                 else:
                     Vote.objects.create(
-                        opportunity=opportunity,
+                        opportunity=opportunity_id,
                         guest_id=guest_id,
                         vote_score=score,
                         criteria_id=category
@@ -109,9 +108,8 @@ class VotingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_votes(self, criteria_id, session_id, opportunity_id):
         try:
-            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
             all_votes = (
-                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
+                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity_id)
                 .order_by("user_id", "-timestamp")  # Order by user_id and most recent timestamp
             )
 
@@ -144,14 +142,9 @@ class VotingConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_outlier_user_ids(self, criteria_id, opportunity_id, lower_limit, upper_limit):
         try:
-            opportunity = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
-            if not opportunity:
-                print(f"No opportunity found for ID {opportunity_id}")
-                return []
-
             # Get all votes ordered by user_id and latest timestamp
             all_votes = (
-                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity)
+                Vote.objects.filter(criteria_id=criteria_id, opportunity=opportunity_id)
                 .order_by("user_id", "-timestamp")  # Order by user_id and most recent timestamp
             )
 
