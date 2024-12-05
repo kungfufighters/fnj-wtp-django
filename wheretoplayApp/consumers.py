@@ -26,9 +26,6 @@ class VotingConsumer(AsyncWebsocketConsumer):
             session_id = data.get('session_id')
             user_id = data.get('user_id')
             guest_id = data.get('guest_id')
-            changedCriteriaVotes = data.get('changedCriteriaVotes')
-            currentIdeaIndex = data.get('currentIdeaIndex')
-
 
             if votes and session_id and (user_id or guest_id):
                 print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, guest_id: {guest_id}, opportunity_id: {opportunity_id}")
@@ -38,9 +35,9 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 await self.insert_vote(session_id, user_id, guest_id, vote_score, criteria_id, opportunity_id)
                 
                 # Fetch updated votes to check for outliers
-                # current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
+                current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
-                limits = await self.mad_outlier_detection(changedCriteriaVotes, opportunity_id)
+                limits = await self.mad_outlier_detection(current_votes, opportunity_id)
                 lower = limits[0]
                 upper = limits[1]
 
@@ -75,8 +72,6 @@ class VotingConsumer(AsyncWebsocketConsumer):
                         'user_id': user_id,
                         'guest_id': guest_id,
                         'opportunity_id': opportunity_id,
-                        'changedCriteriaVotes': changedCriteriaVotes,
-                        'currentIdeaIndex': currentIdeaIndex,
                     }
                 )
             else:
@@ -190,8 +185,6 @@ class VotingConsumer(AsyncWebsocketConsumer):
         if not data:
             return False
         
-        print(data)
-        
         opp = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
         ws = opp.workspace
         threshold = ws.outlier_threshold
@@ -213,12 +206,11 @@ class VotingConsumer(AsyncWebsocketConsumer):
 
     async def broadcast_protocol(self, event):
         try:
-            # votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
+            votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
             await self.send(text_data=json.dumps({
                 'notification': 'Broadcast results',
-                'result': event['changedCriteriaVotes'],
-                'criteria_id': event['criteria_id'],
-                'currentIdeaIndex': event['currentIdeaIndex']
+                'result': votes,
+                'criteria_id': event['criteria_id']
             }))
             #print(f"Broadcasted votes for criteria {event['criteria_id']}")
         except Exception as e:
