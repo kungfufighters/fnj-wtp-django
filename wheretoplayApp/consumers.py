@@ -211,7 +211,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
             # votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
             await self.send(text_data=json.dumps({
                 'notification': 'Broadcast results',
-                'result': event['curVotes'],
+                'new_cur_votes': event['curVotes'],
                 'criteria_id': event['criteria_id']
             }))
             #print(f"Broadcasted votes for criteria {event['criteria_id']}")
