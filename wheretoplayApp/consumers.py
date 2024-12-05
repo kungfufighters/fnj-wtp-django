@@ -26,7 +26,9 @@ class VotingConsumer(AsyncWebsocketConsumer):
             session_id = data.get('session_id')
             user_id = data.get('user_id')
             guest_id = data.get('guest_id')
-            curVotes = data.get('curVotes')
+            changedCriteriaVotes = data.get('changedCriteriaVotes')
+            currentIdeaIndex = data.get('currentIdeaIndex')
+
 
             if votes and session_id and (user_id or guest_id):
                 print(f"Received vote data - Votes: {votes}, session_id: {session_id}, user_id: {user_id}, guest_id: {guest_id}, opportunity_id: {opportunity_id}")
@@ -38,7 +40,7 @@ class VotingConsumer(AsyncWebsocketConsumer):
                 # Fetch updated votes to check for outliers
                 # current_votes = await self.get_votes(criteria_id, session_id, opportunity_id)
                 
-                limits = await self.mad_outlier_detection(curVotes, opportunity_id)
+                limits = await self.mad_outlier_detection(changedCriteriaVotes, opportunity_id)
                 lower = limits[0]
                 upper = limits[1]
 
@@ -73,7 +75,8 @@ class VotingConsumer(AsyncWebsocketConsumer):
                         'user_id': user_id,
                         'guest_id': guest_id,
                         'opportunity_id': opportunity_id,
-                        'curVotes': curVotes,
+                        'changedCriteriaVotes': changedCriteriaVotes,
+                        'currentIdeaIndex': currentIdeaIndex,
                     }
                 )
             else:
@@ -187,6 +190,8 @@ class VotingConsumer(AsyncWebsocketConsumer):
         if not data:
             return False
         
+        print(data)
+        
         opp = Opportunity.objects.filter(opportunity_id=opportunity_id).first()
         ws = opp.workspace
         threshold = ws.outlier_threshold
@@ -211,8 +216,9 @@ class VotingConsumer(AsyncWebsocketConsumer):
             # votes = await self.get_votes(event['criteria_id'], event['session_id'], event['opportunity_id'])
             await self.send(text_data=json.dumps({
                 'notification': 'Broadcast results',
-                'new_cur_votes': event['curVotes'],
-                'criteria_id': event['criteria_id']
+                'result': event['changedCriteriaVotes'],
+                'criteria_id': event['criteria_id'],
+                'currentIdeaIndex': event['currentIdeaIndex']
             }))
             #print(f"Broadcasted votes for criteria {event['criteria_id']}")
         except Exception as e:
