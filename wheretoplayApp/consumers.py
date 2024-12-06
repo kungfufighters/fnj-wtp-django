@@ -128,18 +128,20 @@ class VotingConsumer(AsyncWebsocketConsumer):
 
             lower_limit, upper_limit = self.mad_outlier_detection(vote_counts, threshold)
 
-            if lower_limit and upper_limit:
-                # Identify outliers
-                outlier_user_ids = [
-                    user_id for user_id, score in latest_votes.items() if score < lower_limit or score > upper_limit
-                ]
+            outlier_user_ids = []
+            outlier_guest_ids = []
 
-                outlier_guest_ids = [
-                    guest_id for guest_id, score in latest_guest_votes.items() if score < lower_limit or score > upper_limit
-                ]
-            else: 
-                outlier_user_ids = []
-                outlier_guest_ids = []
+            if lower_limit != None and upper_limit != None:
+                # Identify outliers
+                for user_id in latest_votes:
+                    score = latest_votes[user_id]
+                    if score < lower_limit or score > upper_limit:
+                        outlier_user_ids.append(user_id)
+                
+                for guest_id in latest_guest_votes:
+                    score = latest_guest_votes[guest_id]
+                    if score < lower_limit or score > upper_limit:
+                        outlier_guest_ids.append(guest_id)
 
             return vote_counts, outlier_user_ids, outlier_guest_ids
         
