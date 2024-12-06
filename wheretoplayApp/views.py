@@ -248,7 +248,9 @@ class WorkspaceDisplayView(APIView):
                 newD['label'] = obj.status if obj.status != None else "TBD"
 
                 oppid = obj.opportunity_id
-                newD['participants'] = Vote.objects.filter(opportunity=oppid).values('user').distinct().count()
+                user_count = Vote.objects.filter(opportunity=oppid, guest=None).values('user').distinct().count()
+                guest_count = Vote.objects.filter(opportunity=oppid, user=None).values('guest').distinct().count()
+                newD['participants'] = user_count + guest_count
                 votes = Vote.objects.filter(opportunity=oppid)
                 totalP = 0
                 countP = 0
