@@ -32,6 +32,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['wheretoplay-6af95d3b28f7.herokuapp.com']
 
+'''
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -43,8 +44,9 @@ CHANNEL_LAYERS = {
         },
     },
 }
-
 '''
+
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -53,7 +55,7 @@ CHANNEL_LAYERS = {
         },
     },
 }
-'''
+
 
 # Application definition
 

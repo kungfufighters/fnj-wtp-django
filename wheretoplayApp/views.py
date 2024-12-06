@@ -387,29 +387,33 @@ class SendInviteEmailView(APIView):
             if workspace.user != request.user:
                 return Response({'error': 'You are not the owner of this workspace'}, status=status.HTTP_403_FORBIDDEN)
 
+            # The unique invite link feature was not ready for the showcase
+
             # Generate unique token for the invitation
-            token = uuid.uuid4()
+            # token = uuid.uuid4()
 
             # Create invitation
-            invitation = Invitation.objects.create(
-                workspace=workspace,
-                email=recipient_email,
-                token=token,
-                sent_at=timezone.now(),
-                accepted_at=None,
-            )
+            # invitation = Invitation.objects.create(
+            #     workspace=workspace,
+            #     email=recipient_email,
+            #     token=token,
+            #     sent_at=timezone.now(),
+            #     accepted_at=None,
+            # )
 
             # Generate invite link with token
-            protocol = 'https' if request.is_secure() else 'http'
-            domain = request.get_host()
-            invite_link = f"{protocol}://{domain}/join/{token}/"
+            # protocol = 'https' if request.is_secure() else 'http'
+            # domain = request.get_host()
+            # invite_link = f"www.wheretoplay.net
+
+            invite_link = workspace.url_link
 
             # Send email
             subject = 'You are invited to a voting session'
             message = f"Join the voting session using the following link: {invite_link}"
             if expiration_time:
-                message += f"This link will expire on {expiration_time}.\n"
-            message += "If you did not expect this invitation, please ignore this email."
+                message += f" This link will expire on {expiration_time}. "
+            message += " If you did not expect this invitation, please ignore this email."
 
             from_email = settings.DEFAULT_FROM_EMAIL
             send_mail(subject, message, from_email, [recipient_email])
