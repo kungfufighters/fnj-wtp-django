@@ -115,6 +115,10 @@ CORS_ALLOWED_HEADERS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# Need to remove this eventually (security concerns), 
+# for some reason cors is throwing errors out of nowhere
+CORS_ORIGIN_ALLOW_ALL = True   
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
