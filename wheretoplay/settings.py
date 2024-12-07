@@ -30,7 +30,7 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['https://wheretoplay-6af95d3b28f7.herokuapp.com']
+ALLOWED_HOSTS = ['wheretoplay-6af95d3b28f7.herokuapp.com']
 
 CHANNEL_LAYERS = {
     'default': {
@@ -74,9 +74,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -96,7 +96,8 @@ CORS_ALLOWED_ORIGINS = [
     'https://where2play-b70636d00e54.herokuapp.com',
     'http://www.where2play.net',
     'https://www.where2play.net',
-    'https://wheretoplay-6af95d3b28f7.herokuapp.com'
+    'http:/where2play.net',
+    'https://where2play.net',
 ]
 
 CORS_ALLOWED_HEADERS = [
