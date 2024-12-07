@@ -139,7 +139,7 @@ WSGI_APPLICATION = "wheretoplay.wsgi.application"
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.config(default=env("JAWSDB_URL")),
+    'default': dj_database_url.config(default=env("JAWSDB_PURPLE_URL")),
     "OPTIONS": {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
         },
