@@ -139,11 +139,24 @@ WSGI_APPLICATION = "wheretoplay.wsgi.application"
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.config(default=env("JAWSDB_URL")),
+    'default': dj_database_url.config(default=env("JAWSDB_PURPLE_URL")),
     "OPTIONS": {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
         },
 }
+
+'''
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': env('DATABASE_NAME'),
+        'USER': env('DATABASE_USER'),
+        'PASSWORD': env("DATABASE_PASS"),
+        'HOST': env("HOST_NAME"),
+        'PORT': '3306',
+    }
+}
+'''
 
 #Covers regular testing and django-coverage
 #if 'test' in sys.argv or 'test_coverage' in sys.argv:
