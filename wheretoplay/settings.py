@@ -96,8 +96,6 @@ CORS_ALLOWED_ORIGINS = [
     'https://where2play-b70636d00e54.herokuapp.com',
     'http://www.where2play.net',
     'https://www.where2play.net',
-    'http:/where2play.net',
-    'https://where2play.net',
 ]
 
 CORS_ALLOWED_HEADERS = [
@@ -114,10 +112,6 @@ CORS_ALLOWED_HEADERS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-
-# Need to remove this eventually (security concerns), 
-# for some reason cors is throwing errors out of nowhere
-CORS_ORIGIN_ALLOW_ALL = True   
 
 TEMPLATES = [
     {
@@ -145,7 +139,7 @@ WSGI_APPLICATION = "wheretoplay.wsgi.application"
 import dj_database_url
 
 DATABASES = {
-    'default': dj_database_url.config(default=env("JAWSDB_PURPLE_URL")),
+    'default': dj_database_url.config(default=env("JAWSDB_URL")),
     "OPTIONS": {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
         },
