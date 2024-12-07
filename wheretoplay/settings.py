@@ -30,7 +30,7 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['wheretoplay-6af95d3b28f7.herokuapp.com']
+ALLOWED_HOSTS = ['https://wheretoplay-6af95d3b28f7.herokuapp.com']
 
 CHANNEL_LAYERS = {
     'default': {
