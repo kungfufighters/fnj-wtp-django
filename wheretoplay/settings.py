@@ -96,6 +96,7 @@ CORS_ALLOWED_ORIGINS = [
     'https://where2play-b70636d00e54.herokuapp.com',
     'http://www.where2play.net',
     'https://www.where2play.net',
+    'https://wheretoplay-6af95d3b28f7.herokuapp.com'
 ]
 
 CORS_ALLOWED_HEADERS = [
