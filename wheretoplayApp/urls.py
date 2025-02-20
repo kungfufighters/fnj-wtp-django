@@ -1,6 +1,7 @@
 from django.urls import path, include
 from .views import *
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+from .views import EditOpportunityView
 
 urlpatterns = [
     path('health/', HealthView.as_view(), name='health'),
@@ -31,4 +32,7 @@ urlpatterns = [
     path('api/send_reset_email/', ResetPasswordSendView.as_view(), name='send_reset_email'),
     path('api/reset_password/', ResetPasswordView.as_view(), name='reset_password'),
     path('api/refresh_session_code/', RefreshSessionCodeView.as_view(), name='refresh_session_code'),
+    path('api/edit_opportunity/', EditOpportunityView.as_view(), name='edit_opportunity'),
+    path('api/query/opportunity/', OpportunityDetailView.as_view(), name='opportunity_detail'),
+
 ]

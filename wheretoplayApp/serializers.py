@@ -7,6 +7,9 @@ from .models import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from rest_framework import serializers
+from .models import Opportunity
+
 '''
 class DynamicFieldsModelSerializer(serializers.ModelSerializer):
     """
@@ -158,3 +161,9 @@ class SessionParticipantSerializer(serializers.ModelSerializer):
     class Meta:
         model = SessionParticipant
         fields = ['participant_id', 'workspace', 'user', 'guest']
+
+
+class OpportunitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Opportunity
+        fields = ["opportunity_id", "name", "customer_segment"]

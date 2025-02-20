@@ -22,6 +22,18 @@ import random
 import uuid
 from django_ratelimit.decorators import ratelimit
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+from .models import Opportunity
+from .serializers import OpportunitySerializer
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+from .models import Opportunity
+from .serializers import OpportunitySerializer
+
 # Utility function to generate tokens for a user
 
 def get_tokens_for_user(user):
@@ -798,3 +810,51 @@ class RefreshSessionCodeView(APIView):
 
         except Workspace.DoesNotExist:
             return Response({'error': 'Workspace not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class EditOpportunityView(APIView):
+    permission_classes = [permissions.IsAuthenticated]  # Only logged-in users
+
+    def post(self, request):
+        try:
+            opportunity_id = request.data.get("opportunity_id")
+            name = request.data.get("name")
+            customer_segment = request.data.get("customer_segment")
+
+            if not opportunity_id:
+                return Response({"error": "Opportunity ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Fetch the opportunity from the database
+            try:
+                opportunity = Opportunity.objects.get(opportunity_id=opportunity_id, workspace__user=request.user)
+            except Opportunity.DoesNotExist:
+                return Response({"error": "Opportunity not found or unauthorized"}, status=status.HTTP_404_NOT_FOUND)
+
+            # Update fields if they exist in the request
+            if name:
+                opportunity.name = name
+            if customer_segment:
+                opportunity.customer_segment = customer_segment
+
+            opportunity.save()
+
+            return Response({"message": "Opportunity updated successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+class OpportunityDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]  # Only logged-in users can access
+
+    def get(self, request):
+        opportunity_id = request.query_params.get("id")
+        if not opportunity_id:
+            return Response({"error": "Opportunity ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            opportunity = Opportunity.objects.get(opportunity_id=opportunity_id, workspace__user=request.user)
+            serializer = OpportunitySerializer(opportunity)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Opportunity.DoesNotExist:
+            return Response({"error": "Opportunity not found or unauthorized"}, status=status.HTTP_404_NOT_FOUND)
